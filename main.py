@@ -35,7 +35,7 @@ def save_histoty(histories, output_path):
 def config_loader(config_path="./config.json"):
     with open(config_path, "r") as f:
         config = json.load(f)
-        return config["api_key"], config["base_url"]
+        return config["api_key"], config["base_url"], config["init_prompt"]
 
 
 if __name__ == "__main__":
