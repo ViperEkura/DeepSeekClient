@@ -34,8 +34,25 @@ class DeepSeekClient:
         
         yield "\n", histories
         
-    def generate(self, user_message: str, histories: List[Tuple]=None):
-        pass
+def generate(self, user_message: str, histories: List[Tuple]=None):
+    if histories is None:
+        histories = []
+
+    if isinstance(histories, list) and len(histories) == 0:
+        histories = [{"role": "system", "content": self.init_prompt}]
+        
+    histories.append({"role": "user", "content": user_message})
+    
+    response = self.client.chat.completions.create(
+        model=self.model,
+        messages=histories,
+        stream=False,  # 非流式响应
+    )
+    
+    assistant_message = {"role": "assistant", "content": response.choices[0].message.content}
+    histories.append(assistant_message)
+    
+    return assistant_message["content"], histories
         
         
         
@@ -53,7 +70,6 @@ if __name__ == "__main__":
     api_key, base_url, init_prompt = config_loader()
     client = DeepSeekClient(api_key=api_key, base_url=base_url, init_prompt=init_prompt)
     history = []
-    
     
     while True:
         user_input = input(">> ")
