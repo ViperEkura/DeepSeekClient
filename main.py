@@ -12,9 +12,12 @@ class DeepSeekClient:
     def stream_chat(self, user_message: str, histories: List[Tuple]=None):
         if histories is None:
             histories = []
-        
-        histories.append({"role": "system", "content": self.init_prompt})
+
+        if isinstance(histories, list) and len(histories) == 0:
+            histories = [{"role": "system", "content": self.init_prompt}]
+            
         histories.append({"role": "user", "content": user_message})
+        assistant_message = {"role": "assistant", "content": ""}
         response = self.client.chat.completions.create(
             model=self.model,
             messages=histories,
@@ -24,9 +27,17 @@ class DeepSeekClient:
         for chunk in response:
             if chunk.choices[0].delta.content:
                 content = chunk.choices[0].delta.content
-                yield content
-
-        yield "\n"
+                assistant_message["content"] += content
+                yield content, histories
+                
+        histories.append(assistant_message)
+        
+        yield "\n", histories
+        
+    def generate(self, user_message: str, histories: List[Tuple]=None):
+        pass
+        
+        
         
 def save_histoty(histories, output_path):
     with open(output_path, "w") as f:
@@ -41,11 +52,14 @@ def config_loader(config_path="./config.json"):
 if __name__ == "__main__":
     api_key, base_url, init_prompt = config_loader()
     client = DeepSeekClient(api_key=api_key, base_url=base_url, init_prompt=init_prompt)
+    history = []
     
     
     while True:
         user_input = input(">> ")
         if user_input.lower() == "!exit":
             break
-        for chunk in client.stream_chat(user_input):
+        for chunk, history in client.stream_chat(user_input, histories=history):
             print(chunk, end="", flush=True)
+        
+        print(history)
