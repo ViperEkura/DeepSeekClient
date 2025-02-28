@@ -34,26 +34,25 @@ class DeepSeekClient:
         
         yield "\n", histories
         
-def generate(self, user_message: str, histories: List[Tuple]=None):
-    if histories is None:
-        histories = []
+    def generate(self, user_message: str, histories: List[Tuple]=None):
+        if histories is None:
+            histories = []
 
-    if isinstance(histories, list) and len(histories) == 0:
-        histories = [{"role": "system", "content": self.init_prompt}]
+        if isinstance(histories, list) and len(histories) == 0:
+            histories = [{"role": "system", "content": self.init_prompt}]
+            
+        histories.append({"role": "user", "content": user_message})
         
-    histories.append({"role": "user", "content": user_message})
-    
-    response = self.client.chat.completions.create(
-        model=self.model,
-        messages=histories,
-        stream=False,  # 非流式响应
-    )
-    
-    assistant_message = {"role": "assistant", "content": response.choices[0].message.content}
-    histories.append(assistant_message)
-    
-    return assistant_message["content"], histories
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=histories,
+            stream=False,  # 非流式响应
+        )
         
+        assistant_message = {"role": "assistant", "content": response.choices[0].message.content}
+        histories.append(assistant_message)
+        
+        return assistant_message["content"], histories
         
         
 def save_histoty(histories, output_path):
@@ -75,7 +74,7 @@ if __name__ == "__main__":
         user_input = input(">> ")
         if user_input.lower() == "!exit":
             break
-        for chunk, history in client.stream_chat(user_input, histories=history):
-            print(chunk, end="", flush=True)
-        
+        # for chunk, history in client.stream_chat(user_input, histories=history):
+        #     print(chunk, end="", flush=True)
+        _, history = client.generate(user_input, histories=history) 
         print(history)
