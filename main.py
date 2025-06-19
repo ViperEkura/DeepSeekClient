@@ -20,7 +20,5 @@ if __name__ == "__main__":
         user_input = input(">> ")
         if user_input.lower() == "!exit":
             break
-        # for chunk, history in client.stream_chat(user_input, histories=history):
-        #     print(chunk, end="", flush=True)
-        _, history = client.generate(user_input, histories=history) 
-        print(history)
+        for chunk, history in client.stream_chat(user_input, histories=history):
+            print(chunk, end="", flush=True)
