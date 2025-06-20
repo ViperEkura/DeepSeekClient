@@ -1,5 +1,6 @@
 from openai import OpenAI
-from typing import List, Tuple
+from typing import List, Tuple, Dict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class DeepSeekClient:
     def __init__(self, api_key, base_url, model="deepseek-chat", init_prompt="你是一个人工智能助手"):
@@ -44,7 +45,7 @@ class DeepSeekClient:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=histories,
-            stream=False,  # 非流式响应
+            stream=False, 
         )
         
         assistant_message = {"role": "assistant", "content": response.choices[0].message.content}
@@ -59,35 +60,40 @@ class DeepSeekClient:
     ) -> Tuple[List[str], List[List[dict]]]:
         
         if histories is None:
-            processed_histories = []
+            histories = []
             for _ in user_messages:
                 new_history = [{"role": "system", "content": self.init_prompt}]
-                processed_histories.append(new_history)
+                histories.append(new_history)
+
+        copied_histories = [history.copy() for history in histories]
 
         responses = []
         updated_histories = []
 
-        for user_msg, history in zip(user_messages, histories):
-            history.append({"role": "user", "content": user_msg})
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=history,
-                stream=False
-            )
-            
-            assistant_content = response.choices[0].message.content
-            history.append({"role": "assistant", "content": assistant_content})
-            
-            responses.append(assistant_content)
-            updated_histories.append(history)
+        def process_single_request(user_msg: str, history: List[Dict]):
+            # 调用 generate 方法复用逻辑
+            response, new_history = self.generate(user_msg, history)
+            return response, new_history
+
+        with ThreadPoolExecutor() as executor:
+            future_to_index = {
+                executor.submit(process_single_request, user_msg, history): idx
+                for idx, (user_msg, history) in enumerate(zip(user_messages, copied_histories))
+            }
+
+            results = [None] * len(user_messages)
+            for future in as_completed(future_to_index):
+                idx = future_to_index[future]
+                try:
+                    result = future.result()
+                    results[idx] = result
+                except Exception as exc:
+                    print(f"Task {idx} generated an exception: {exc}")
+                    results[idx] = ("", [])
+
+        for res in results:
+            responses.append(res[0])
+            updated_histories.append(res[1])
 
         return responses, updated_histories
-    
-
-class DeepSeekProcessor:
-    def __init__(self, client: DeepSeekClient):
-        self.client = client
-    
-    def processor(questions: List[str], histories: List[List[Tuple]]) -> List[str]:
-        pass
-        
+            

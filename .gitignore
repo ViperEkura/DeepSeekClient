@@ -3,3 +3,6 @@ config.json
 
 # pycache
 *__pycache__
+
+# test unit files
+test_*
