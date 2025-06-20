@@ -1,5 +1,5 @@
 from openai import OpenAI
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class DeepSeekClient:
@@ -56,29 +56,21 @@ class DeepSeekClient:
     def batch_generate(
         self, 
         user_messages: List[str], 
-        histories: List[List[Tuple]] = None
+        batch_histories: List[List[Tuple]] = None
     ) -> Tuple[List[str], List[List[dict]]]:
         
-        if histories is None:
-            histories = []
+        if batch_histories is None:
+            batch_histories = []
             for _ in user_messages:
                 new_history = [{"role": "system", "content": self.init_prompt}]
-                histories.append(new_history)
-
-        copied_histories = [history.copy() for history in histories]
+                batch_histories.append(new_history)
 
         responses = []
-        updated_histories = []
-
-        def process_single_request(user_msg: str, history: List[Dict]):
-            # 调用 generate 方法复用逻辑
-            response, new_history = self.generate(user_msg, history)
-            return response, new_history
 
         with ThreadPoolExecutor() as executor:
             future_to_index = {
-                executor.submit(process_single_request, user_msg, history): idx
-                for idx, (user_msg, history) in enumerate(zip(user_messages, copied_histories))
+                executor.submit(self.generate, user_msg, history): idx
+                for idx, (user_msg, history) in enumerate(zip(user_messages, batch_histories))
             }
 
             results = [None] * len(user_messages)
@@ -93,7 +85,6 @@ class DeepSeekClient:
 
         for res in results:
             responses.append(res[0])
-            updated_histories.append(res[1])
 
-        return responses, updated_histories
+        return responses, batch_histories
             
