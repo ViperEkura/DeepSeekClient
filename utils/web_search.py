@@ -379,9 +379,7 @@ class PageCrawler:
         return extracted
 
     def _extract_main_content(self, html_content):
-        """
-        使用trafilatura智能提取正文内容并转换为Markdown格式
-        """
+        """使用trafilatura智能提取正文内容并转换为Markdown格式"""
         try:
             extracted = trafilatura.extract(
                 html_content,
@@ -390,17 +388,13 @@ class PageCrawler:
                 output_format="markdown"  # 直接输出markdown
             )
             
-            if extracted:
-                content_md = "\n".join([line for line in extracted.split("\n") if line.strip()])
-                title = trafilatura.extract_metadata(html_content).as_dict()["title"]
+            title = trafilatura.extract_metadata(html_content).as_dict()["title"]
                 
-                return {
-                    "title": title,
-                    "content": content_md,
-                    "word_count": len(content_md.split())
-                }
-            else:
-                raise ValueError("无法提取正文内容")
+            return {
+                "title": title,
+                "content": extracted,
+                "word_count": len(extracted.split())
+            }
     
         except Exception as e:
             print(f"智能提取失败 {e}")
@@ -411,7 +405,7 @@ if __name__ == "__main__":
     page_crawler = PageCrawler(delay=0.5)
     
     try:
-        results = search_crawler.search("Python编程教程", engine="bing", num_results=3, lang="zh")
+        results = search_crawler.search("Python编程教程", engine="baidu", num_results=3, lang="zh")
         
         print(f"找到 {len(results)} 条结果:")
         for i, result in enumerate(results, 1):
@@ -427,7 +421,7 @@ if __name__ == "__main__":
             if "error" not in page_content:
                 print(f"   页面标题: {page_content.get('title', '无')}")
                 print(f"   正文长度: {page_content.get('word_count', 0)} 词")
-                print(f"   正文预览: {page_content.get('content', '')[:300]}...")
+                print(f"   正文预览: \n{page_content.get('content', '')[:300]}...")
             else:
                 print(f"   页面抓取失败: {page_content['error']}")
                 
