@@ -2,12 +2,18 @@ import base64
 import requests
 import time
 import random
+import html2text
+import trafilatura
+
+from abc import ABC, abstractmethod
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, parse_qs
-from abc import ABC, abstractmethod
+
+
 
 
 class SearchEngine(ABC):
+    
     """搜索引擎抽象基类"""
     
     def __init__(self, user_agent=None, delay=1.0, timeout=10):
@@ -313,22 +319,28 @@ class PageCrawler:
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': self.user_agent})
 
+        self.html_converter = html2text.HTML2Text()
+        self.html_converter.ignore_links = True         # 忽略超链接
+        self.html_converter.ignore_images = False       # 保留图片
+        self.html_converter.ignore_emphasis = False     # 保留强调格式
+        self.html_converter.body_width = 0              # 不换行
+
     def fetch_page_content(self, url, selectors=None):
         """
-        抓取指定网页内容
+        抓取指定网页内容并转换为Markdown格式
         
         Args:
             url: 目标网页URL
             selectors: 自定义内容选择器字典，例如：
                 {
                     "title": "h1",
-                    "content": "div.article-content p",
+                    "content": "div.article-content",
                     "author": "span.author"
                 }
-                若未提供，则使用通用正文提取逻辑。
+                若未提供，则使用智能正文提取逻辑。
         
         Returns:
-            dict: 包含提取内容的字典
+            dict: 包含提取内容的字典，包含Markdown格式的正文
         """
         try:
             time.sleep(self.delay * random.uniform(0.5, 1.5))  # 避免请求过快
@@ -336,43 +348,62 @@ class PageCrawler:
             response.raise_for_status()
             response.encoding = response.apparent_encoding  # 自动识别编码
             
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
             if selectors:
                 # 使用自定义选择器
-                extracted = {}
-                for key, selector in selectors.items():
-                    elements = soup.select(selector)
-                    extracted[key] = "\n".join([e.get_text().strip() for e in elements if e.get_text().strip()])
-                return extracted
+                return self._extract_with_selectors(response.text, selectors)
             else:
-                # 默认提取正文内容（通用方法）
-                return self._extract_main_content(soup)
+                # 使用智能正文提取
+                return self._extract_main_content(response.text)
                 
         except Exception as e:
             print(f"抓取页面 {url} 出错: {e}")
             return {"error": str(e)}
 
-    def _extract_main_content(self, soup: BeautifulSoup):
+    def _extract_with_selectors(self, html_content, selectors):
         """
-        提取页面所有可见文本内容（不去除导航、侧边栏、广告等）
+        使用提供的选择器提取内容并转换为Markdown
         """
-        # 获取整个 <body> 的所有文本，或整个文档
-        body = soup.body
-        if not body:
-            body = soup  # 如果没有 body，用整个 soup
+        soup = BeautifulSoup(html_content, 'html.parser')
+        extracted = {}
+        
+        for key, selector in selectors.items():
+            elements = soup.select(selector)
+            if key == "content":
+                # 对正文内容进行Markdown转换
+                content_html = "".join(str(e) for e in elements)
+                extracted[key] = self.html_converter.handle(content_html).strip()
+            else:
+                # 对其他字段提取文本
+                extracted[key] = "\n".join([e.get_text().strip() for e in elements if e.get_text().strip()])
+        
+        return extracted
 
-        # 提取所有文本，去除空白行，合并连续空格
-        all_text = body.get_text(separator='\n', strip=True)
-
-        lines = [line.strip() for line in all_text.splitlines() if line.strip()]
-        cleaned_text = "\n".join(lines)
-
-        return {
-            "title": soup.title.get_text().strip() if soup.title else "无标题",
-            "content": cleaned_text[:20000],  # 可适当放宽长度限制
-            "word_count": len(cleaned_text.split()),
-        }
+    def _extract_main_content(self, html_content):
+        """
+        使用trafilatura智能提取正文内容并转换为Markdown格式
+        """
+        try:
+            extracted = trafilatura.extract(
+                html_content,
+                include_links=False,  # 不包含链接
+                include_tables=True,  # 包含表格
+                output_format="markdown"  # 直接输出markdown
+            )
+            
+            if extracted:
+                content_md = "\n".join([line for line in extracted.split("\n") if line.strip()])
+                title = trafilatura.extract_metadata(html_content).as_dict()["title"]
+                
+                return {
+                    "title": title,
+                    "content": content_md,
+                    "word_count": len(content_md.split())
+                }
+            else:
+                raise ValueError("无法提取正文内容")
+    
+        except Exception as e:
+            print(f"智能提取失败 {e}")
 
 
 if __name__ == "__main__":
