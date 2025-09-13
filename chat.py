@@ -1,6 +1,6 @@
-from deeoseek_client import DeepSeekClient
+from utils.deeoseek_client import DeepSeekClient
 import json
-        
+
 def save_histoty(histories, output_path):
     with open(output_path, "w") as f:
         json.dump(histories, f)
