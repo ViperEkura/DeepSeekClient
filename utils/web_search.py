@@ -212,20 +212,103 @@ class SearchEngineCrawler:
         
 
 class PageCrawler:
-    pass
+    def __init__(self, user_agent=None, delay=1.0, timeout=10):
+        self.user_agent = user_agent or (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        )
+        self.delay = delay
+        self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': self.user_agent})
+
+    def fetch_page_content(self, url, selectors=None):
+        """
+        抓取指定网页内容
+        
+        Args:
+            url: 目标网页URL
+            selectors: 自定义内容选择器字典，例如：
+                {
+                    "title": "h1",
+                    "content": "div.article-content p",
+                    "author": "span.author"
+                }
+                若未提供，则使用通用正文提取逻辑。
+        
+        Returns:
+            dict: 包含提取内容的字典
+        """
+        try:
+            time.sleep(self.delay * random.uniform(0.5, 1.5))  # 避免请求过快
+            response = self.session.get(url, timeout=self.timeout)
+            response.raise_for_status()
+            response.encoding = response.apparent_encoding  # 自动识别编码
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            if selectors:
+                # 使用自定义选择器
+                extracted = {}
+                for key, selector in selectors.items():
+                    elements = soup.select(selector)
+                    extracted[key] = "\n".join([e.get_text().strip() for e in elements if e.get_text().strip()])
+                return extracted
+            else:
+                # 默认提取正文内容（通用方法）
+                return self._extract_main_content(soup)
+                
+        except Exception as e:
+            print(f"抓取页面 {url} 出错: {e}")
+            return {"error": str(e)}
+
+    def _extract_main_content(self, soup):
+        """
+        提取页面所有可见文本内容（不去除导航、侧边栏、广告等）
+        """
+        # 获取整个 <body> 的所有文本，或整个文档
+        body = soup.body
+        if not body:
+            body = soup  # 如果没有 body，用整个 soup
+
+        # 提取所有文本，去除空白行，合并连续空格
+        all_text = body.get_text(separator='\n', strip=True)
+
+        lines = [line.strip() for line in all_text.splitlines() if line.strip()]
+        cleaned_text = "\n".join(lines)
+
+        return {
+            "title": soup.title.get_text().strip() if soup.title else "无标题",
+            "content": cleaned_text[:20000],  # 可适当放宽长度限制
+            "word_count": len(cleaned_text.split()),
+        }
 
 
 if __name__ == "__main__":
-    crawler = SearchEngineCrawler(delay=1.5)
+    search_crawler = SearchEngineCrawler(delay=1.5)
+    page_crawler = PageCrawler(delay=0.5)
+    
     try:
-        results = crawler.search("Python编程教程", engine="bing", num_results=5, lang="zh")
+        results = search_crawler.search("Python编程教程", engine="bing", num_results=3, lang="zh")
         
         print(f"找到 {len(results)} 条结果:")
         for i, result in enumerate(results, 1):
-            print(f"\n{i}. {result['title']}")
+            print(f"\n{'='*80}")
+            print(f"{i}. 标题: {result['title']}")
             print(f"   链接: {result['link']}")
             print(f"   摘要: {result['snippet'][:100]}...")
             
+            # 抓取该页面的正文内容
+            print(f"   正在抓取页面内容...")
+            page_content = page_crawler.fetch_page_content(result['link'])
+            
+            if "error" not in page_content:
+                print(f"   页面标题: {page_content.get('title', '无')}")
+                print(f"   正文长度: {page_content.get('word_count', 0)} 词")
+                print(f"   正文预览: {page_content.get('content', '')[:300]}...")
+            else:
+                print(f"   页面抓取失败: {page_content['error']}")
+                
     except Exception as e:
         print(f"搜索出错: {e}")
     
