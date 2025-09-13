@@ -1,20 +1,15 @@
+import requests
 import time
 import random
-import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, parse_qs
+from abc import ABC, abstractmethod
 
 
-class SearchEngineCrawler:
+class SearchEngine(ABC):
+    """搜索引擎抽象基类"""
+    
     def __init__(self, user_agent=None, delay=1.0, timeout=10):
-        """
-        初始化搜索引擎爬虫
-        
-        Args:
-            user_agent: 使用的User-Agent字符串
-            delay: 请求之间的延迟时间（秒），避免被封IP
-            timeout: 请求超时时间（秒）
-        """
         self.user_agent = user_agent or (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -23,149 +18,94 @@ class SearchEngineCrawler:
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': self.user_agent})
-        
-        # 搜索引擎配置
-        self.search_engines = {
-            "google": {
-                "url": "https://www.google.com/search",
-                "param": "q",
-                "result_selector": "div.g",
-                "title_selector": "h3",
-                "link_selector": "a",
-                "snippet_selector": "div.VwiC3b",
-                "next_page_selector": "#pnnext"
-            },
-            "bing": {
-                "url": "https://www.bing.com/search",
-                "param": "q",
-                "result_selector": "li.b_algo",
-                "title_selector": "h2",
-                "link_selector": "a",
-                "snippet_selector": "div.b_caption p",
-                "next_page_selector": "a.sb_pagN"
-            },
-            "baidu": {
-                "url": "https://www.baidu.com/s",
-                "param": "wd",
-                "result_selector": "div.result",
-                "title_selector": "h3 a",
-                "link_selector": "a",
-                "snippet_selector": "div.c-abstract",
-                "next_page_selector": "a.n"
-            },
-            "duckduckgo": {
-                "url": "https://html.duckduckgo.com/html/",
-                "param": "q",
-                "result_selector": "div.result",
-                "title_selector": "a.result__a",
-                "link_selector": "a.result__a",
-                "snippet_selector": "a.result__snippet",
-                "method": "POST",
-                "next_page_selector": "div.nav-link form"
-            }
-        }
     
-    def search(self, query, engine="google", num_results=10, lang="en"):
-        """
-        执行搜索并返回结果
-        
-        Args:
-            query: 搜索关键词
-            engine: 搜索引擎名称 (google, bing, baidu, duckduckgo)
-            num_results: 需要返回的结果数量
-            lang: 搜索语言
-            
-        Returns:
-            list: 包含搜索结果的字典列表
-        """
-        if engine not in self.search_engines:
-            raise ValueError(f"不支持的搜索引擎: {engine}。支持的引擎: {list(self.search_engines.keys())}")
-        
-        config = self.search_engines[engine]
+
+    def search(self, query, num_results=10, lang="en"):
         results = []
         page = 0
         
         while len(results) < num_results:
-            # 获取当前页面的搜索结果
-            page_results = self._fetch_search_page(query, config, page, lang)
-            
+            page_results = self._fetch_search_page(query, page, lang)
             if not page_results:
-                break  # 没有更多结果了
-            
+                break
+                
             results.extend(page_results)
             page += 1
-            
-            # 避免请求过于频繁
             time.sleep(self.delay * random.uniform(0.5, 1.5))
         
         return results[:num_results]
     
-    def _fetch_search_page(self, query, config, page, lang):
-        """获取单页搜索结果"""
-        params = {config["param"]: query}
+    @abstractmethod
+    def _fetch_search_page(self, query, page, lang):
+        pass
+    
+    @abstractmethod
+    def _parse_results(self, soup: BeautifulSoup):
+        pass
+    
+    def set_proxy(self, proxy):
+        """设置代理服务器"""
+        self.session.proxies = {
+            'http': proxy,
+            'https': proxy
+        }
+
+
+class GoogleSearchEngine(SearchEngine):
+    """Google搜索引擎实现"""
+    
+    def __init__(self, user_agent=None, delay=1.0, timeout=10):
+        super().__init__(user_agent, delay, timeout)
+        self.url = "https://www.google.com/search"
+        self.param = "q"
+        self.result_selector = "div.g"
+        self.title_selector = "h3"
+        self.link_selector = "a"
+        self.snippet_selector = "div.VwiC3b"
+        self.next_page_selector = "#pnnext"
+    
+    def _fetch_search_page(self, query, page, lang):
+        params = {self.param: query}
         
-        # 添加分页参数
         if page > 0:
-            if config["url"] == "https://www.google.com/search":
-                params["start"] = page * 10
-            elif config["url"] == "https://www.bing.com/search":
-                params["first"] = page * 10 + 1
-            elif config["url"] == "https://www.baidu.com/s":
-                params["pn"] = page * 10
+            params["start"] = page * 10
         
-        # 添加语言参数
-        if lang and config["url"] == "https://www.google.com/search":
+        if lang:
             params["hl"] = lang
         
         try:
-            # 发送请求
-            if config.get("method") == "POST":
-                response = self.session.post(config["url"], data=params, timeout=self.timeout)
-            else:
-                response = self.session.get(config["url"], params=params, timeout=self.timeout)
-            
+            response = self.session.get(self.url, params=params, timeout=self.timeout)
             response.raise_for_status()
             
-            # 解析HTML
             soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # 提取搜索结果
-            return self._parse_results(soup, config)
+            return self._parse_results(soup)
             
         except requests.RequestException as e:
-            print(f"请求出错: {e}")
+            print(f"Google请求出错: {e}")
             return []
         except Exception as e:
-            print(f"解析出错: {e}")
+            print(f"Google解析出错: {e}")
             return []
     
-    def _parse_results(self, soup, config):
-        """解析搜索结果页面"""
+    def _parse_results(self, soup: BeautifulSoup):
         results = []
-        search_results = soup.select(config["result_selector"])
+        search_results = soup.select(self.result_selector)
         
         for result in search_results:
             try:
-                # 提取标题
-                title_elem = result.select_one(config["title_selector"])
+                title_elem = result.select_one(self.title_selector)
                 title = title_elem.get_text().strip() if title_elem else "无标题"
                 
-                # 提取链接
-                link_elem = result.select_one(config["link_selector"])
+                link_elem = result.select_one(self.link_selector)
                 if not link_elem or not link_elem.get('href'):
                     continue
                     
                 link = link_elem['href']
                 
-                # 处理相对链接和Google/Baidu的跳转链接
-                if link.startswith('/'):
-                    base_url = urlparse(config["url"]).netloc
-                    link = f"https://{base_url}{link}"
-                elif link.startswith('/url?q='):  # Google的跳转链接
+                if link.startswith('/url?q='):
                     link = parse_qs(urlparse(link).query)['q'][0]
                 
-                # 提取摘要
-                snippet_elem = result.select_one(config["snippet_selector"])
+                snippet_elem = result.select_one(self.snippet_selector)
                 snippet = snippet_elem.get_text().strip() if snippet_elem else "无摘要"
                 
                 results.append({
@@ -175,40 +115,257 @@ class SearchEngineCrawler:
                 })
                 
             except Exception as e:
-                print(f"解析单个结果时出错: {e}")
+                print(f"Google解析单个结果时出错: {e}")
                 continue
         
         return results
+
+
+class BingSearchEngine(SearchEngine):
+    """Bing搜索引擎实现"""
     
-    def add_custom_engine(self, name, config):
-        """
-        添加自定义搜索引擎配置
-        
-        Args:
-            name: 引擎名称
-            config: 配置字典，包含以下键:
-                - url: 搜索URL
-                - param: 查询参数名
-                - result_selector: 结果容器选择器
-                - title_selector: 标题选择器
-                - link_selector: 链接选择器
-                - snippet_selector: 摘要选择器
-                - method: 请求方法 (可选，默认为GET)
-        """
-        required_keys = ['url', 'param', 'result_selector', 'title_selector', 
-                         'link_selector', 'snippet_selector']
-        
-        if not all(key in config for key in required_keys):
-            raise ValueError("配置必须包含所有必需的键")
-        
-        self.search_engines[name] = config
+    def __init__(self, user_agent=None, delay=1.0, timeout=10):
+        super().__init__(user_agent, delay, timeout)
+        self.url = "https://www.bing.com/search"
+        self.param = "q"
+        self.result_selector = "li.b_algo"
+        self.title_selector = "h2"
+        self.link_selector = "a"
+        self.snippet_selector = "div.b_caption p"
+        self.next_page_selector = "a.sb_pagN"
     
-    def set_proxy(self, proxy):
-        """设置代理服务器"""
-        self.session.proxies = {
-            'http': proxy,
-            'https': proxy
+    def _fetch_search_page(self, query, page, lang):
+        params = {self.param: query}
+        
+        if page > 0:
+            params["first"] = page * 10 + 1
+        
+        try:
+            response = self.session.get(self.url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            return self._parse_results(soup)
+            
+        except requests.RequestException as e:
+            print(f"Bing请求出错: {e}")
+            return []
+        except Exception as e:
+            print(f"Bing解析出错: {e}")
+            return []
+    
+    def _parse_results(self, soup: BeautifulSoup):
+        results = []
+        search_results = soup.select(self.result_selector)
+        
+        for result in search_results:
+            try:
+                title_elem = result.select_one(self.title_selector)
+                title = title_elem.get_text().strip() if title_elem else "无标题"
+                
+                link_elem = result.select_one(self.link_selector)
+                if not link_elem or not link_elem.get('href'):
+                    continue
+                    
+                link = link_elem['href']
+                
+                if link.startswith('/ck/a'):
+                    try:
+                        query = urlparse(link).query
+                        params = parse_qs(query)
+                        if 'u' in params:
+                            encoded_url = params['u'][0]
+                            if encoded_url.startswith('a'):
+                                encoded_url = encoded_url[1:]
+                            import base64
+                            link = base64.b64decode(encoded_url).decode('utf-8')
+                    except Exception as e:
+                        print(f"Bing跳转解析失败: {e}")
+                        continue
+                
+                snippet_elem = result.select_one(self.snippet_selector)
+                snippet = snippet_elem.get_text().strip() if snippet_elem else "无摘要"
+                
+                results.append({
+                    'title': title,
+                    'link': link,
+                    'snippet': snippet
+                })
+                
+            except Exception as e:
+                print(f"Bing解析单个结果时出错: {e}")
+                continue
+        
+        return results
+
+
+class BaiduSearchEngine(SearchEngine):
+    """百度搜索引擎实现"""
+    
+    def __init__(self, user_agent=None, delay=1.0, timeout=10):
+        super().__init__(user_agent, delay, timeout)
+        self.url = "https://www.baidu.com/s"
+        self.param = "wd"
+        self.result_selector = "div.result"
+        self.title_selector = "h3 a"
+        self.link_selector = "a"
+        self.snippet_selector = "div.c-abstract"
+        self.next_page_selector = "a.n"
+    
+    def _fetch_search_page(self, query, page, lang):
+        params = {self.param: query}
+        
+        if page > 0:
+            params["pn"] = page * 10
+        
+        try:
+            response = self.session.get(self.url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            return self._parse_results(soup)
+            
+        except requests.RequestException as e:
+            print(f"百度请求出错: {e}")
+            return []
+        except Exception as e:
+            print(f"百度解析出错: {e}")
+            return []
+    
+    def _parse_results(self, soup: BeautifulSoup):
+        results = []
+        search_results = soup.select(self.result_selector)
+        
+        for result in search_results:
+            try:
+                title_elem = result.select_one(self.title_selector)
+                title = title_elem.get_text().strip() if title_elem else "无标题"
+                
+                link_elem = result.select_one(self.link_selector)
+                if not link_elem or not link_elem.get('href'):
+                    continue
+                    
+                link = link_elem['href']
+                
+                if link.startswith('/'):
+                    base_url = urlparse(self.url).netloc
+                    link = f"https://{base_url}{link}"
+                
+                snippet_elem = result.select_one(self.snippet_selector)
+                snippet = snippet_elem.get_text().strip() if snippet_elem else "无摘要"
+                
+                results.append({
+                    'title': title,
+                    'link': link,
+                    'snippet': snippet
+                })
+                
+            except Exception as e:
+                print(f"百度解析单个结果时出错: {e}")
+                continue
+        
+        return results
+
+
+class DuckDuckGoSearchEngine(SearchEngine):
+    """DuckDuckGo搜索引擎实现"""
+    
+    def __init__(self, user_agent=None, delay=1.0, timeout=10):
+        super().__init__(user_agent, delay, timeout)
+        self.url = "https://html.duckduckgo.com/html/"
+        self.param = "q"
+        self.result_selector = "div.result"
+        self.title_selector = "a.result__a"
+        self.link_selector = "a.result__a"
+        self.snippet_selector = "a.result__snippet"
+        self.next_page_selector = "div.nav-link form"
+        self.method = "POST"
+    
+    
+    def _fetch_search_page(self, query, page, lang):
+        params = {self.param: query}
+        
+        try:
+            if self.method == "POST":
+                response = self.session.post(self.url, data=params, timeout=self.timeout)
+            else:
+                response = self.session.get(self.url, params=params, timeout=self.timeout)
+            
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            return self._parse_results(soup)
+            
+        except requests.RequestException as e:
+            print(f"DuckDuckGo请求出错: {e}")
+            return []
+        except Exception as e:
+            print(f"DuckDuckGo解析出错: {e}")
+            return []
+    
+    def _parse_results(self, soup: BeautifulSoup):
+        results = []
+        search_results = soup.select(self.result_selector)
+        
+        for result in search_results:
+            try:
+                title_elem = result.select_one(self.title_selector)
+                title = title_elem.get_text().strip() if title_elem else "无标题"
+                
+                link_elem = result.select_one(self.link_selector)
+                if not link_elem or not link_elem.get('href'):
+                    continue
+                    
+                link = link_elem['href']
+                
+                snippet_elem = result.select_one(self.snippet_selector)
+                snippet = snippet_elem.get_text().strip() if snippet_elem else "无摘要"
+                
+                results.append({
+                    'title': title,
+                    'link': link,
+                    'snippet': snippet
+                })
+                
+            except Exception as e:
+                print(f"DuckDuckGo解析单个结果时出错: {e}")
+                continue
+        
+        return results
+
+
+class SearchEngineFactory:
+    """搜索引擎工厂类"""
+    
+    @staticmethod
+    def create_engine(engine_type, user_agent=None, delay=1.0, timeout=10) -> SearchEngine:
+        engines = {
+            "google": GoogleSearchEngine,
+            "bing": BingSearchEngine,
+            "baidu": BaiduSearchEngine,
+            "duckduckgo": DuckDuckGoSearchEngine
         }
+        
+        if engine_type not in engines:
+            raise ValueError(f"不支持的搜索引擎: {engine_type}。支持的引擎: {list(engines.keys())}")
+        
+        return engines[engine_type](user_agent, delay, timeout)
+
+
+class SearchEngineCrawler:
+    """搜索引擎爬虫主类（外观模式）"""
+    
+    def __init__(self, user_agent=None, delay=1.0, timeout=10):
+        self.user_agent = user_agent
+        self.delay = delay
+        self.timeout = timeout
+    
+    def search(self, query, engine="google", num_results=10, lang="en"):
+        """执行搜索并返回结果"""
+        search_engine = SearchEngineFactory.create_engine(
+            engine, self.user_agent, self.delay, self.timeout
+        )
+        return search_engine.search(query, num_results, lang)
         
 
 class PageCrawler:
@@ -262,7 +419,7 @@ class PageCrawler:
             print(f"抓取页面 {url} 出错: {e}")
             return {"error": str(e)}
 
-    def _extract_main_content(self, soup):
+    def _extract_main_content(self, soup: BeautifulSoup):
         """
         提取页面所有可见文本内容（不去除导航、侧边栏、广告等）
         """
