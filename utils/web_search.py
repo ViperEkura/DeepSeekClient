@@ -1,3 +1,4 @@
+import base64
 import requests
 import time
 import random
@@ -51,76 +52,6 @@ class SearchEngine(ABC):
         }
 
 
-class GoogleSearchEngine(SearchEngine):
-    """Google搜索引擎实现"""
-    
-    def __init__(self, user_agent=None, delay=1.0, timeout=10):
-        super().__init__(user_agent, delay, timeout)
-        self.url = "https://www.google.com/search"
-        self.param = "q"
-        self.result_selector = "div.g"
-        self.title_selector = "h3"
-        self.link_selector = "a"
-        self.snippet_selector = "div.VwiC3b"
-        self.next_page_selector = "#pnnext"
-    
-    def _fetch_search_page(self, query, page, lang):
-        params = {self.param: query}
-        
-        if page > 0:
-            params["start"] = page * 10
-        
-        if lang:
-            params["hl"] = lang
-        
-        try:
-            response = self.session.get(self.url, params=params, timeout=self.timeout)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            return self._parse_results(soup)
-            
-        except requests.RequestException as e:
-            print(f"Google请求出错: {e}")
-            return []
-        except Exception as e:
-            print(f"Google解析出错: {e}")
-            return []
-    
-    def _parse_results(self, soup: BeautifulSoup):
-        results = []
-        search_results = soup.select(self.result_selector)
-        
-        for result in search_results:
-            try:
-                title_elem = result.select_one(self.title_selector)
-                title = title_elem.get_text().strip() if title_elem else "无标题"
-                
-                link_elem = result.select_one(self.link_selector)
-                if not link_elem or not link_elem.get('href'):
-                    continue
-                    
-                link = link_elem['href']
-                
-                if link.startswith('/url?q='):
-                    link = parse_qs(urlparse(link).query)['q'][0]
-                
-                snippet_elem = result.select_one(self.snippet_selector)
-                snippet = snippet_elem.get_text().strip() if snippet_elem else "无摘要"
-                
-                results.append({
-                    'title': title,
-                    'link': link,
-                    'snippet': snippet
-                })
-                
-            except Exception as e:
-                print(f"Google解析单个结果时出错: {e}")
-                continue
-        
-        return results
-
-
 class BingSearchEngine(SearchEngine):
     """Bing搜索引擎实现"""
     
@@ -169,19 +100,23 @@ class BingSearchEngine(SearchEngine):
                     
                 link = link_elem['href']
                 
-                if link.startswith('/ck/a'):
-                    try:
-                        query = urlparse(link).query
-                        params = parse_qs(query)
-                        if 'u' in params:
-                            encoded_url = params['u'][0]
-                            if encoded_url.startswith('a'):
-                                encoded_url = encoded_url[1:]
-                            import base64
-                            link = base64.b64decode(encoded_url).decode('utf-8')
-                    except Exception as e:
-                        print(f"Bing跳转解析失败: {e}")
-                        continue
+                if "ck/a" in link:
+                    query = urlparse(link).query
+                    params = parse_qs(query)
+                    if 'u' in params:
+                        encoded_url = params['u'][0]
+
+                        # move "a1"
+                        if encoded_url.startswith('a1'):
+                            encoded_url = encoded_url[2:]
+                        
+                        # base64 padding
+                        missing_padding = len(encoded_url) % 4
+                        if missing_padding:
+                            encoded_url += '=' * (4 - missing_padding)
+
+                        link = base64.b64decode(encoded_url).decode('utf-8')
+
                 
                 snippet_elem = result.select_one(self.snippet_selector)
                 snippet = snippet_elem.get_text().strip() if snippet_elem else "无摘要"
@@ -340,7 +275,6 @@ class SearchEngineFactory:
     @staticmethod
     def create_engine(engine_type, user_agent=None, delay=1.0, timeout=10) -> SearchEngine:
         engines = {
-            "google": GoogleSearchEngine,
             "bing": BingSearchEngine,
             "baidu": BaiduSearchEngine,
             "duckduckgo": DuckDuckGoSearchEngine
@@ -442,7 +376,7 @@ class PageCrawler:
 
 
 if __name__ == "__main__":
-    search_crawler = SearchEngineCrawler(delay=1.5)
+    search_crawler = SearchEngineCrawler(delay=0.5)
     page_crawler = PageCrawler(delay=0.5)
     
     try:
