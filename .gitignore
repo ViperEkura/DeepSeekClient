@@ -6,3 +6,7 @@ config.json
 
 # test unit files
 test_*
+
+# db files
+*.db
+*.sqlite
