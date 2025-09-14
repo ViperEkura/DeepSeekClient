@@ -1,4 +1,4 @@
-from neunexus.service import DeepSeekChatApp
+from neunexus.service import NeuNexusApp, DatabaseManager
 import json
  
 
@@ -10,5 +10,6 @@ def config_loader(config_path="./config.json"):
 
 if __name__ == "__main__":
     api_key, base_url, init_prompt = config_loader()
-    client = DeepSeekChatApp(api_key, base_url)
+    db_manager = DatabaseManager("./neunexus.db")
+    client = NeuNexusApp(db_manager)
     client.run()

@@ -324,5 +324,5 @@ class NeuNexusApp:
         self.conversation_service.register_routes()
         self.message_service.register_routes()
         
-    def run(self, host, port, debug=True):
+    def run(self, host=None, port=None, debug=True):
         self.app.run(host=host, port=port, debug=debug)
