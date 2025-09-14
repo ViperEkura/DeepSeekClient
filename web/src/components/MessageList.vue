@@ -48,7 +48,6 @@ export default {
   },
   
   methods: {
-    // 格式化时间
     formatTime(timestamp) {
       return new Date(timestamp).toLocaleTimeString([], { 
         hour: '2-digit', 
@@ -56,7 +55,6 @@ export default {
       })
     },
     
-    // 滚动到底部
     scrollToBottom() {
       this.$nextTick(() => {
         if (this.$refs.messagesContainer) {
@@ -67,12 +65,16 @@ export default {
   },
   
   watch: {
-    // 监听消息变化，自动滚动
     messages: {
       handler() {
         this.scrollToBottom()
       },
       deep: true
+    },
+    isLoading: {
+      handler() {
+        this.scrollToBottom()
+      }
     }
   },
   
@@ -83,21 +85,27 @@ export default {
 </script>
 
 <style scoped>
-/* 样式保持不变 */
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  background-color: #f5f5f5;
+  padding: 20px;
+  background: #f8fafd;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
 .message {
   display: flex;
-  margin-bottom: 16px;
+  gap: 12px;
+  max-width: 80%;
+  align-self: flex-start;
 }
 
 .message-user {
   flex-direction: row-reverse;
+  align-self: flex-end;
+  max-width: 85%;
 }
 
 .message-avatar {
@@ -107,42 +115,42 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #fff;
-  margin: 0 8px;
+  background-color: #e6f0ff;
   font-size: 20px;
+  flex-shrink: 0;
 }
 
 .message-content {
-  max-width: 70%;
-}
-
-.message-user .message-content {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  gap: 4px;
 }
 
 .message-text {
-  padding: 12px;
+  padding: 14px 18px;
   border-radius: 18px;
-  background-color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   position: relative;
+  line-height: 1.5;
+  font-size: 15px;
+  color: #333;
 }
 
 .message-user .message-text {
-  background-color: #007bff;
+  background-color: #4a7bce;
   color: white;
 }
 
 .message-time {
   font-size: 12px;
-  color: #999;
-  margin-top: 4px;
+  color: #777;
+  align-self: flex-end;
 }
 
 .streaming-cursor {
   animation: blink 1s infinite;
+  color: #4a7bce;
 }
 
 @keyframes blink {
@@ -151,8 +159,12 @@ export default {
 }
 
 .thinking {
-  color: #666;
+  color: #555;
   font-style: italic;
+  padding: 10px 15px;
+  background: #e6f0ff;
+  border-radius: 15px;
+  display: inline-block;
 }
 
 .thinking-dots {

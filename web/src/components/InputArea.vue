@@ -3,7 +3,7 @@
     <div class="input-container">
       <textarea
         v-model="inputText"
-        placeholder="输入消息..."
+        placeholder="输入消息... (Shift + Enter 换行)"
         :disabled="isLoading"
         @keydown.enter.prevent="handleEnter"
         ref="textareaRef"
@@ -14,9 +14,10 @@
         @click="sendMessage" 
         :disabled="isLoading || !inputText.trim()"
         class="send-button"
+        :class="{ 'sending': isLoading }"
       >
         <span v-if="!isLoading">发送</span>
-        <span v-else class="loading">⏳</span>
+        <span v-else class="loading">发送中...</span>
       </button>
     </div>
   </div>
@@ -40,7 +41,6 @@ export default {
   },
   
   methods: {
-    // 发送消息
     sendMessage() {
       if (this.inputText.trim() && !this.isLoading) {
         this.$emit('send-message', this.inputText.trim())
@@ -51,31 +51,27 @@ export default {
       }
     },
     
-    // 处理回车键
     handleEnter(event) {
       if (event.shiftKey) {
-        // Shift+Enter 换行
         this.inputText += '\n'
         this.$nextTick(() => {
           this.adjustTextareaHeight()
         })
       } else {
-        // Enter 发送消息
         this.sendMessage()
       }
     },
     
-    // 自动调整文本区域高度
     adjustTextareaHeight() {
-      if (this.$refs.textareaRef) {
-        this.$refs.textareaRef.style.height = 'auto'
-        this.$refs.textareaRef.style.height = Math.min(this.$refs.textareaRef.scrollHeight, 120) + 'px'
+      const textarea = this.$refs.textareaRef
+      if (textarea) {
+        textarea.style.height = 'auto'
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px'
       }
     }
   },
   
   watch: {
-    // 监听输入文本变化
     inputText() {
       this.$nextTick(() => {
         this.adjustTextareaHeight()
@@ -84,7 +80,6 @@ export default {
   },
   
   mounted() {
-    // 初始调整高度
     this.adjustTextareaHeight()
   }
 }
@@ -92,54 +87,78 @@ export default {
 
 <style scoped>
 .input-area {
-  padding: 16px;
-  border-top: 1px solid #e0e0e0;
+  padding: 15px 20px;
   background-color: #fff;
+  border-top: 1px solid #e0e7ff;
 }
 
 .input-container {
   display: flex;
   align-items: flex-end;
   gap: 12px;
+  background: #f8fafd;
+  border-radius: 20px;
+  padding: 10px 15px;
+  box-shadow: 0 -2px 10px rgba(74, 123, 206, 0.08);
 }
 
 .text-input {
   flex: 1;
-  border: 1px solid #ddd;
-  border-radius: 20px;
-  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  padding: 8px 0;
   resize: none;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 15px;
   max-height: 120px;
   overflow-y: auto;
+  line-height: 1.5;
+  color: #333;
 }
 
 .text-input:focus {
   outline: none;
-  border-color: #007bff;
+}
+
+.text-input::placeholder {
+  color: #a0b0d0;
 }
 
 .send-button {
-  background-color: #007bff;
+  background: linear-gradient(to right, #4a7bce, #5a8bd9);
   color: white;
   border: none;
-  border-radius: 20px;
-  padding: 10px 20px;
+  border-radius: 18px;
+  padding: 10px 22px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 2px 5px rgba(74, 123, 206, 0.2);
 }
 
 .send-button:disabled {
-  background-color: #ccc;
+  background: #c0d0f0;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .send-button:not(:disabled):hover {
-  background-color: #0056b3;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(74, 123, 206, 0.3);
+}
+
+.send-button.sending {
+  background: #7a9bd9;
+  transform: none;
+  box-shadow: none;
 }
 
 .loading {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 </style>

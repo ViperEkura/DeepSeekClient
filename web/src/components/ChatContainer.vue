@@ -1,18 +1,22 @@
 <template>
   <div class="chat-container">
-    <MessageList 
-      :messages="messages" 
-      :is-loading="isLoading"
-    />
-    <InputArea 
-      @send-message="handleSendMessage"
-      :is-loading="isLoading"
-    />
+    <ConversationList />
+    <div class="main-chat">
+      <MessageList 
+        :messages="messages" 
+        :is-loading="isLoading"
+      />
+      <InputArea 
+        @send-message="handleSendMessage"
+        :is-loading="isLoading"
+      />
+    </div>
   </div>
 </template>
 
 <script>
 import MessageList from './MessageList.vue'
+import ConversationList from './ConversationList.vue'
 import InputArea from './InputArea.vue'
 
 export default {
@@ -20,7 +24,8 @@ export default {
   
   components: {
     MessageList,
-    InputArea
+    InputArea,
+    ConversationList
   },
   
   data() {
@@ -31,9 +36,7 @@ export default {
   },
   
   methods: {
-    // 处理发送消息
     async handleSendMessage(inputText) {
-      // 添加用户消息
       this.messages.push({
         id: Date.now(),
         content: inputText,
@@ -41,11 +44,9 @@ export default {
         timestamp: new Date()
       })
       
-      // 设置加载状态
       this.isLoading = true
       
       try {
-        // 添加初始AI消息（空内容）
         const aiMessageId = Date.now() + 1
         this.messages.push({
           id: aiMessageId,
@@ -55,20 +56,16 @@ export default {
           isStreaming: true
         })
         
-        // 模拟流式响应
         const response = this.simulateStreamingResponse(inputText)
         
-        // 处理流式数据
         for await (const chunk of response) {
           const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
           if (messageIndex !== -1) {
             this.messages[messageIndex].content += chunk
-            // 使用 Vue.set 或直接赋值确保响应式更新
             this.$set(this.messages, messageIndex, { ...this.messages[messageIndex] })
           }
         }
         
-        // 完成流式传输
         const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
         if (messageIndex !== -1) {
           this.messages[messageIndex].isStreaming = false
@@ -88,7 +85,6 @@ export default {
       }
     },
     
-    // 模拟流式响应的函数
     async * simulateStreamingResponse(input) {
       const responses = {
         '你好': ['你', '好！', '有', '什', '么', '可', '以', '帮', '助', '你', '的', '吗', '？'],
@@ -100,7 +96,7 @@ export default {
       
       for (const word of response) {
         yield word
-        await new Promise(resolve => setTimeout(resolve, 100)) // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 100))
       }
     }
   }
@@ -110,13 +106,16 @@ export default {
 <style scoped>
 .chat-container {
   display: flex;
+  height: 100vh;
+  background-color: #f0f5ff;
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+
+.main-chat {
+  flex: 1;
+  display: flex;
   flex-direction: column;
-  margin: 0;
-  border: 0px solid #e0e0e0;
-  border-radius: 0; /* 去掉圆角更贴合屏幕 */
-  overflow: hidden;
-  width: 100vw;      /* 视口宽度100% */
-  height: 100vh;     /* 视口高度100% */
-  box-sizing: border-box; /* 确保边框不会导致溢出 */
+  background-color: #fff;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.05);
 }
 </style>
