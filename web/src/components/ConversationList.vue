@@ -42,7 +42,7 @@ export default {
       searchQuery: '',
       conversations: [],
       activeConversationId: null,
-      apiBaseUrl: process.env.VUE_APP_API_BASE_URL || 'http://localhost:5000'
+      apiBaseUrl: 'http://localhost:5000'
     }
   },
   
