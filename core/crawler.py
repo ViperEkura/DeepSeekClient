@@ -349,58 +349,19 @@ class PageCrawler:
         self.html_converter.ignore_emphasis = False     # 保留强调格式
         self.html_converter.body_width = 0              # 不换行
 
-    def fetch_page_content(self, url, selectors=None):
-        """
-        抓取指定网页内容并转换为Markdown格式
-        
-        Args:
-            url: 目标网页URL
-            selectors: 自定义内容选择器字典，例如：
-                {
-                    "title": "h1",
-                    "content": "div.article-content",
-                    "author": "span.author"
-                }
-                若未提供，则使用智能正文提取逻辑。
-        
-        Returns:
-            dict: 包含提取内容的字典，包含Markdown格式的正文
-        """
+    def fetch_page_content(self, url):
+        """抓取指定网页内容并转换为Markdown格式"""
         try:
-            time.sleep(self.delay * random.uniform(0.5, 1.5))  # 避免请求过快
+            time.sleep(self.delay * random.uniform(0.5, 1.5))
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
-            response.encoding = response.apparent_encoding  # 自动识别编码
-            
-            if selectors:
-                # 使用自定义选择器
-                return self._extract_with_selectors(response.text, selectors)
-            else:
-                # 使用智能正文提取
-                return self._extract_main_content(response.text)
+            response.encoding = response.apparent_encoding 
+
+            return self._extract_main_content(response.text)
                 
         except Exception as e:
             print(f"抓取页面 {url} 出错: {e}")
             return {"error": str(e)}
-
-    def _extract_with_selectors(self, html_content, selectors):
-        """
-        使用提供的选择器提取内容并转换为Markdown
-        """
-        soup = BeautifulSoup(html_content, 'html.parser')
-        extracted = {}
-        
-        for key, selector in selectors.items():
-            elements = soup.select(selector)
-            if key == "content":
-                # 对正文内容进行Markdown转换
-                content_html = "".join(str(e) for e in elements)
-                extracted[key] = self.html_converter.handle(content_html).strip()
-            else:
-                # 对其他字段提取文本
-                extracted[key] = "\n".join([e.get_text().strip() for e in elements if e.get_text().strip()])
-        
-        return extracted
 
     def _extract_main_content(self, html_content):
         """使用trafilatura智能提取正文内容并转换为Markdown格式"""
@@ -413,7 +374,7 @@ class PageCrawler:
             )
             
             title = trafilatura.extract_metadata(html_content).as_dict()["title"]
-                
+            
             return {
                 "title": title,
                 "content": extracted,
@@ -421,7 +382,7 @@ class PageCrawler:
             }
     
         except Exception as e:
-            print(f"智能提取失败 {e}")
+            print(f"trafilatura提取失败 {e}")
 
 
 if __name__ == "__main__":
