@@ -307,4 +307,13 @@ class MessageService:
         
 
 class NeuNexusApp:
-    pass
+    def __init__(self, db_manager: DatabaseManager):
+        self.app = Flask(__name__)
+        self.conversation_service = ConversationService(db_manager, self.app)
+        self.message_service = MessageService(db_manager, self.app)
+        
+        self.conversation_service.register_routes()
+        self.message_service.register_routes()
+        
+    def run(self, host, port, debug=True):
+        self.app.run(host=host, port=port, debug=debug)
