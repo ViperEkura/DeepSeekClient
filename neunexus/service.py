@@ -23,7 +23,7 @@ class ConversationService:
         self.db_manager = db_manager
         self.conversation_repo = ConversationRepository(db_manager)
         
-    def register_routes(self):
+    def register_routes(self) -> Flask:
         self.app.add_url_rule(
             '/conversations', 
             'create_conversation', 
@@ -36,13 +36,20 @@ class ConversationService:
             self.get_all_conversations, 
             methods=['GET']
         )
-        # 添加删除对话的路由
+        self.app.add_url_rule(
+            '/conversations/<int:conversation_id>', 
+            'get_conversation_by_id', 
+            self.get_conversation_by_id, 
+            methods=['GET']
+        )
         self.app.add_url_rule(
             '/conversations/<int:conversation_id>', 
             'delete_conversation', 
             self.delete_conversation, 
             methods=['DELETE']
         )
+    
+        return self.app
 
     @handle_errors
     def create_conversation(self) -> Response:
@@ -94,6 +101,45 @@ class ConversationService:
             } for conv in conversations
         ]), 200
 
+    @handle_errors
+    def get_conversation_by_id(self, conversation_id: int) -> Response:
+        """根据ID获取单个对话"""
+        conversation = self.conversation_repo.get_by_id(conversation_id)
+        if not conversation:
+            return jsonify({'message': 'Conversation not found'}), 404
+        
+        return jsonify({
+            'conversation_id': conversation.id,
+            'title': conversation.title,
+            'created_at': conversation.created_at
+        }), 200
+        
+    @handle_errors
+    def update_conversation_by_id(self, conversation_id: int, title:str) -> Response:
+        conversation = self.conversation_repo.get_by_id(conversation_id)
+        if not conversation:
+            return jsonify({'message': 'Conversation not found'}), 404
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No JSON data provided'}), 400
+
+        title = data.get('title')
+        if not title or not isinstance(title, str):
+            return jsonify({'message': 'Title is required and must be a string'}), 400
+        
+        success = self.conversation_repo.update(conversation_id, title)
+        if success:
+            updated_conversation = self.conversation_repo.get_by_id(conversation_id)
+            return jsonify({
+                'message': 'Conversation updated successfully',
+                'conversation_id': updated_conversation.id,
+                'title': updated_conversation.title,
+                'created_at': updated_conversation.created_at
+            }), 200
+        else:
+            return jsonify({'message': 'Failed to update conversation'}), 500
+        
 
 
 

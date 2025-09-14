@@ -151,10 +151,10 @@ class ConversationRepository(BaseRepository):
         rows = self.db.execute_query(query)
         return [self._row_to_conversation(row) for row in rows]
     
-    def update_title(self, conversation_id: int, new_title: str) -> bool:
+    def update(self, conversation_id: int, title: str) -> bool:
         """更新对话标题"""
         query = "UPDATE conversations SET title = ? WHERE id = ?"
-        rowcount = self.db.execute_command(query, (new_title, conversation_id))
+        rowcount = self.db.execute_command(query, (title, conversation_id))
         return rowcount > 0
     
     def delete(self, conversation_id: int) -> bool:

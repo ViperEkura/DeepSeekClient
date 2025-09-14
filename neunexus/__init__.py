@@ -1,7 +1,6 @@
 __version__ = "0.1.0"
 __author__ = "ViperEkura"
 
-from neunexus.service import DeepSeekChatApp
 from neunexus.crawler import SearchEngineCrawler, PageCrawler
 from neunexus.database import DatabaseManager, ConversationRepository, MessageRepository
 from neunexus.deepseek_client import DeepSeekClient
