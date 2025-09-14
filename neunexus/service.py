@@ -48,6 +48,12 @@ class ConversationService:
             self.delete_conversation, 
             methods=['DELETE']
         )
+        self.app.add_url_rule(
+            '/conversations/<int:conversation_id>', 
+            'update_conversation', 
+            self.update_conversation_by_id, 
+            methods=['PUT']
+        )
     
         return self.app
 
@@ -149,13 +155,6 @@ class MessageService:
         
     def register_routes(self) -> Flask:
         """注册消息相关的路由"""
-        # 获取对话的所有消息
-        self.app.add_url_rule(
-            '/conversations/<int:conversation_id>/messages', 
-            'get_conversation_messages', 
-            self.get_conversation_messages, 
-            methods=['GET']
-        )
         
         # 获取对话的最近消息
         self.app.add_url_rule(
@@ -188,6 +187,14 @@ class MessageService:
             self.delete_message, 
             methods=['DELETE']
         )
+
+        # 获取对话的所有消息
+        self.app.add_url_rule(
+            '/conversations/<int:conversation_id>/messages', 
+            'get_conversation_messages', 
+            self.get_conversation_messages, 
+            methods=['GET']
+        )
         
         # 删除对话的所有消息
         self.app.add_url_rule(
@@ -198,21 +205,6 @@ class MessageService:
         )
         
         return self.app
-    
-    @handle_errors  # 假设你已经定义了错误处理装饰器
-    def get_conversation_messages(self, conversation_id: int) -> Response:
-        """获取对话的所有消息"""
-        messages = self.message_repo.get_by_conversation(conversation_id)
-        
-        return jsonify([
-            {
-                'message_id': msg.id,
-                'conversation_id': msg.conversation_id,
-                'role': msg.role,
-                'content': msg.content,
-                'timestamp': msg.timestamp
-            } for msg in messages
-        ]), 200
     
     @handle_errors
     def get_recent_messages(self, conversation_id: int) -> Response:
@@ -304,6 +296,23 @@ class MessageService:
             return jsonify({'message': 'All messages in conversation deleted successfully'}), 200
         else:
             return jsonify({'message': 'Failed to delete messages'}), 500
+
+    @handle_errors
+    def get_conversation_messages(self, conversation_id: int) -> Response:
+        """获取对话的所有消息"""
+        messages = self.message_repo.get_by_conversation(conversation_id)
+        
+        return jsonify([
+            {
+                'message_id': msg.id,
+                'conversation_id': msg.conversation_id,
+                'role': msg.role,
+                'content': msg.content,
+                'timestamp': msg.timestamp
+            } for msg in messages
+        ]), 200
+        
+
         
 
 class NeuNexusApp:
