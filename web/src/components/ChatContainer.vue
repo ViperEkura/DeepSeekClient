@@ -111,11 +111,12 @@ export default {
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  max-width: 800px;
-  margin: 0 auto;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  margin: 0;
+  border: 0px solid #e0e0e0;
+  border-radius: 0; /* 去掉圆角更贴合屏幕 */
   overflow: hidden;
+  width: 100vw;      /* 视口宽度100% */
+  height: 100vh;     /* 视口高度100% */
+  box-sizing: border-box; /* 确保边框不会导致溢出 */
 }
 </style>

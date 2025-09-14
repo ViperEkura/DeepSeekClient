@@ -1,6 +1,5 @@
 <template>
   <div id="app">
-    <h1>LLM流式对话演示</h1>
     <ChatContainer />
   </div>
 </template>
@@ -16,10 +15,15 @@ body {
   padding: 20px;
   background-color: #f9f9f9;
 }
-
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
 #app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
 }
 </style>
