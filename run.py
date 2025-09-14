@@ -1,4 +1,4 @@
-from core.backend import DeepSeekChatApp
+from neunexus.backend import DeepSeekChatApp
 import json
  
 

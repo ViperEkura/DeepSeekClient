@@ -1,5 +1,5 @@
 from flask import Flask, request, Response
-from core.deeoseek_client import DeepSeekClient
+from neunexus.deeoseek_client import DeepSeekClient
 
 class DeepSeekChatApp:
     def __init__(self, api_key, base_url):
