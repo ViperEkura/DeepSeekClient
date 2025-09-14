@@ -24,7 +24,7 @@ class SearchEngine(ABC):
         self.delay = delay
         self.timeout = timeout
         self.session = requests.Session()
-        self.session.headers.update({'User-Agent': self.user_agent})
+        self._setup_session_headers()
     
 
     def search(self, query, num_results=10, lang="en"):
@@ -41,6 +41,21 @@ class SearchEngine(ABC):
             time.sleep(self.delay * random.uniform(0.5, 1.5))
         
         return results[:num_results]
+    
+    def _setup_session_headers(self):
+        """设置更真实的请求头"""
+        self.session.headers.update({
+            'User-Agent': self.user_agent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0',
+        })
     
     @abstractmethod
     def _fetch_search_page(self, query, page, lang):
