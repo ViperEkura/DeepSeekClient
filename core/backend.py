@@ -44,8 +44,3 @@ class DeepSeekChatApp:
     def run(self, host='0.0.0.0', port=5000, debug=True):
         """启动应用"""
         self.app.run(host=host, port=port, debug=debug)
-
-
-if __name__ == '__main__':
-    chat_app = DeepSeekChatApp()
-    chat_app.run()
