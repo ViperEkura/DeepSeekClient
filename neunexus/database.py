@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
+import threading
 
+# 使用线程局部存储来保存数据库连接
+thread_local = threading.local()
 
 @dataclass
 class Conversation:
@@ -41,27 +44,26 @@ class DatabaseManager:
     
     def __init__(self, db_file: str):
         self.db_file = db_file
-        self.conn = None
-        self._connect()
+        self.init_db()
         
-    def _connect(self):
-        """建立数据库连接"""
-        try:
-            self.conn = sqlite3.connect(self.db_file)
-            self.conn.row_factory = sqlite3.Row
-        except sqlite3.Error:
-            raise
+    def get_connection(self):
+        """获取当前线程的数据库连接"""
+        if not hasattr(thread_local, 'connection'):
+            thread_local.connection = sqlite3.connect(self.db_file)
+            thread_local.connection.row_factory = sqlite3.Row
+        return thread_local.connection
     
     @contextmanager
     def get_cursor(self):
         """上下文管理器用于获取游标，自动处理异常"""
+        conn = self.get_connection()
         cursor = None
         try:
-            cursor = self.conn.cursor()
+            cursor = conn.cursor()
             yield cursor
+            conn.commit()
         except sqlite3.Error:
-            if self.conn:
-                self.conn.rollback()
+            conn.rollback()
             raise
         finally:
             if cursor:
@@ -93,7 +95,6 @@ class DatabaseManager:
             with self.get_cursor() as cursor:
                 for _, create_sql in tables.items():
                     cursor.execute(create_sql)
-                self.conn.commit()
         except sqlite3.Error:
             raise
     
@@ -107,22 +108,16 @@ class DatabaseManager:
         """执行命令并返回影响的行数"""
         with self.get_cursor() as cursor:
             cursor.execute(query, params or ())
-            self.conn.commit()
             return cursor.rowcount
     
-    def close(self):
-        """关闭数据库连接"""
-        if self.conn:
-            self.conn.close()
-    
-    def __enter__(self):
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+    def close_connection(self):
+        """关闭当前线程的数据库连接"""
+        if hasattr(thread_local, 'connection'):
+            thread_local.connection.close()
+            del thread_local.connection
 
 
-class ConversationRepository(BaseRepository):
+class ConversationRepository:
     """对话数据访问层"""
     
     def __init__(self, db_manager: DatabaseManager):
@@ -171,7 +166,8 @@ class ConversationRepository(BaseRepository):
             created_at=row['created_at']
         )
 
-class MessageRepository(BaseRepository):
+
+class MessageRepository:
     """消息数据访问层"""
     
     def __init__(self, db_manager: DatabaseManager):
