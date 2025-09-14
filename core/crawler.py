@@ -37,8 +37,8 @@ class SearchEngine(ABC):
                 break
                 
             results.extend(page_results)
-            page += 1
             time.sleep(self.delay * random.uniform(0.5, 1.5))
+            page += 1
         
         return results[:num_results]
     
@@ -46,7 +46,8 @@ class SearchEngine(ABC):
         """设置更真实的请求头"""
         self.session.headers.update({
             'User-Agent': self.user_agent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;'
+                    'q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
@@ -75,7 +76,18 @@ class SearchEngine(ABC):
 
 class BingSearchEngine(SearchEngine):
     """Bing搜索引擎实现"""
-    
+
+    BING_LANGUAGE_MAPPING = {
+        'en': 'en',
+        'zh': 'zh-CN',
+        'ja': 'ja',
+        'es': 'es',
+        'fr': 'fr',
+        'de': 'de',
+        'ru': 'ru',
+        'ko': 'ko', 
+    }
+
     def __init__(self, user_agent=None, delay=1.0, timeout=10):
         super().__init__(user_agent, delay, timeout)
         self.url = "https://www.bing.com/search"
@@ -91,6 +103,9 @@ class BingSearchEngine(SearchEngine):
         
         if page > 0:
             params["first"] = page * 10 + 1
+
+        if lang:
+            params["setlang"] = BingSearchEngine.BING_LANGUAGE_MAPPING.get(lang, lang)
         
         try:
             response = self.session.get(self.url, params=params, timeout=self.timeout)
@@ -99,9 +114,6 @@ class BingSearchEngine(SearchEngine):
             soup = BeautifulSoup(response.text, 'html.parser')
             return self._parse_results(soup)
             
-        except requests.RequestException as e:
-            print(f"Bing请求出错: {e}")
-            return []
         except Exception as e:
             print(f"Bing解析出错: {e}")
             return []
@@ -173,6 +185,10 @@ class BaiduSearchEngine(SearchEngine):
         
         if page > 0:
             params["pn"] = page * 10
+
+        if lang:
+            params["lr"] = f"lang_{lang}"
+            # lang_en, lang_ja, lang_zh
         
         try:
             response = self.session.get(self.url, params=params, timeout=self.timeout)
@@ -181,9 +197,6 @@ class BaiduSearchEngine(SearchEngine):
             soup = BeautifulSoup(response.text, 'html.parser')
             return self._parse_results(soup)
             
-        except requests.RequestException as e:
-            print(f"百度请求出错: {e}")
-            return []
         except Exception as e:
             print(f"百度解析出错: {e}")
             return []
