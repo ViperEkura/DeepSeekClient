@@ -4,7 +4,7 @@ __author__ = "ViperEkura"
 from neunexus.backend import DeepSeekChatApp
 from neunexus.crawler import SearchEngineCrawler, PageCrawler
 from neunexus.database import DatabaseManager, ConversationService, MessageService
-from neunexus.deeoseek_client import DeepSeekClient
+from neunexus.deepseek_client import DeepSeekClient
 from neunexus.retriever import Retriever
 
 __all__ = [

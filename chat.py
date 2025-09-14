@@ -1,4 +1,4 @@
-from neunexus.deeoseek_client import DeepSeekClient
+from neunexus.deepseek_client import DeepSeekClient
 import json
 
 def save_histoty(histories, output_path):
