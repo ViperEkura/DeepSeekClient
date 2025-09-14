@@ -2,7 +2,7 @@
   <div class="conversation-list">
     <div class="header">
       <h2>对话记录</h2>
-      <button class="new-chat-btn">
+      <button class="new-chat-btn" @click="createNewConversation">
         <span>+</span> 新对话
       </button>
     </div>
@@ -16,66 +16,33 @@
         v-for="(conv, index) in filteredConversations" 
         :key="index" 
         class="conversation-item"
-        :class="{ active: conv.isActive }"
+        :class="{ active: activeConversationId === conv.conversation_id }"
         @click="selectConversation(conv)"
       >
-        <div class="avatar">{{ conv.avatar }}</div>
+        <div class="avatar">{{ getAvatar(conv.title) }}</div>
         <div class="conversation-info">
           <div class="title">{{ conv.title }}</div>
-          <div class="preview">{{ conv.lastMessage }}</div>
+          <div class="preview">{{ formatDate(conv.created_at) }}</div>
         </div>
-        <div class="time">{{ conv.time }}</div>
-        <div v-if="conv.unread" class="unread-badge">{{ conv.unread }}</div>
+        <div class="time">{{ formatTime(conv.created_at) }}</div>
+        <button class="delete-btn" @click.stop="deleteConversation(conv.conversation_id)">×</button>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import axios from 'axios';
+
 export default {
   name: 'ConversationList',
   
   data() {
     return {
       searchQuery: '',
-      conversations: [
-        {
-          id: 1,
-          title: 'AI助手',
-          lastMessage: '你好！有什么可以帮助你的吗？',
-          time: '10:24',
-          avatar: '🤖',
-          isActive: true,
-          unread: 0
-        },
-        {
-          id: 2,
-          title: '项目讨论',
-          lastMessage: '明天的会议需要准备什么材料？',
-          time: '昨天',
-          avatar: '👥',
-          isActive: false,
-          unread: 3
-        },
-        {
-          id: 3,
-          title: '技术咨询',
-          lastMessage: '这个问题可以通过API解决',
-          time: '09:15',
-          avatar: '💻',
-          isActive: false,
-          unread: 0
-        },
-        {
-          id: 4,
-          title: '客户支持',
-          lastMessage: '您的订单已发货',
-          time: '周一',
-          avatar: '🛒',
-          isActive: false,
-          unread: 2
-        }
-      ]
+      conversations: [],
+      activeConversationId: null,
+      apiBaseUrl: process.env.VUE_APP_API_BASE_URL || 'http://localhost:5000'
     }
   },
   
@@ -85,21 +52,104 @@ export default {
       
       const query = this.searchQuery.toLowerCase()
       return this.conversations.filter(conv => 
-        conv.title.toLowerCase().includes(query) || 
-        conv.lastMessage.toLowerCase().includes(query)
+        conv.title.toLowerCase().includes(query)
       )
     }
   },
   
+  async mounted() {
+    await this.fetchConversations();
+  },
+  
   methods: {
-    selectConversation(conv) {
-      this.conversations.forEach(c => c.isActive = false)
-      conv.isActive = true
+    async fetchConversations() {
+      try {
+        const response = await axios.get(`${this.apiBaseUrl}/conversations`);
+        this.conversations = response.data;
+      } catch (error) {
+        console.error('获取对话列表失败:', error);
+        alert('获取对话列表失败，请检查网络连接');
+      }
+    },
+    
+    async createNewConversation() {
+      const title = prompt('请输入新对话的标题:');
+      if (!title) return;
+      
+      try {
+        const response = await axios.post(`${this.apiBaseUrl}/conversations`, {
+          title: title
+        });
+        
+        if (response.status === 201) {
+          this.conversations.unshift(response.data);
+          this.selectConversation(response.data);
+          alert('对话创建成功');
+        }
+      } catch (error) {
+        console.error('创建对话失败:', error);
+        alert('创建对话失败，请检查网络连接');
+      }
+    },
+    
+    async deleteConversation(conversationId) {
+      if (!confirm('确定要删除这个对话吗？')) return;
+      
+      try {
+        const response = await axios.delete(`${this.apiBaseUrl}/conversations/${conversationId}`);
+        
+        if (response.status === 200) {
+          this.conversations = this.conversations.filter(conv => conv.conversation_id !== conversationId);
+          
+          if (this.activeConversationId === conversationId) {
+            this.activeConversationId = null;
+            this.$emit('conversation-selected', null);
+          }
+          
+          alert('对话删除成功');
+        }
+      } catch (error) {
+        console.error('删除对话失败:', error);
+        alert('删除对话失败，请检查网络连接');
+      }
+    },
+    
+    selectConversation(conversation) {
+      this.activeConversationId = conversation.conversation_id;
+      this.$emit('conversation-selected', conversation);
+    },
+    
+    getAvatar(title) {
+      // 根据标题生成头像
+      if (!title) return '💬';
+      return title.charAt(0).toUpperCase();
+    },
+    
+    formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('zh-CN');
+    },
+    
+    formatTime(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      } else if (diffDays === 1) {
+        return '昨天';
+      } else if (diffDays < 7) {
+        return `${diffDays}天前`;
+      } else {
+        return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+      }
     }
   }
 }
 </script>
-
 <style scoped>
 .conversation-list {
   width: 280px;
@@ -226,21 +276,5 @@ export default {
   color: #a0b8e0;
   flex-shrink: 0;
   margin-left: 8px;
-}
-
-.unread-badge {
-  position: absolute;
-  right: 15px;
-  top: 12px;
-  background: #4a90e2;
-  color: white;
-  min-width: 20px;
-  height: 20px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
 }
 </style>
