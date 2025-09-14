@@ -1,3 +1,3 @@
-from utils.deeoseek_client import DeepSeekClient
-from utils.retriever import Retriever
+from core.deeoseek_client import DeepSeekClient
+from core.retriever import Retriever
 

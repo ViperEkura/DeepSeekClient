@@ -1,4 +1,4 @@
-from utils.deeoseek_client import DeepSeekClient
+from core.deeoseek_client import DeepSeekClient
 import json
 
 def save_histoty(histories, output_path):
