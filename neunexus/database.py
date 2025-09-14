@@ -4,9 +4,7 @@ from typing import List, Optional, Dict, Any
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 import threading
-
-# 使用线程局部存储来保存数据库连接
-thread_local = threading.local()
+from queue import Queue, Empty
 
 @dataclass
 class Conversation:
@@ -39,35 +37,97 @@ class BaseRepository(ABC):
         pass
 
 
+class SQLiteConnectionPool:
+    def __init__(self, db_file: str, max_connections: int = 5, timeout: int = 5):
+        self.db_file = db_file
+        self.max_connections = max_connections
+        self.timeout = timeout
+        self._pool = Queue(max_connections)
+        self._connections_created = 0
+        self._lock = threading.Lock()
+        
+        # 预先创建一些连接
+        for _ in range(min(2, max_connections)):
+            self._create_connection()
+    
+    def _create_connection(self):
+        """创建新连接"""
+        conn = sqlite3.connect(self.db_file, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        self._pool.put(conn)
+        with self._lock:
+            self._connections_created += 1
+    
+    def get_connection(self) -> sqlite3.Connection:
+        """从池中获取连接"""
+        try:
+            # 尝试获取现有连接
+            return self._pool.get(block=True, timeout=self.timeout)
+        except Empty:
+            # 如果没有可用连接且可以创建新连接
+            with self._lock:
+                if self._connections_created < self.max_connections:
+                    self._create_connection()
+                    return self._pool.get(block=True, timeout=self.timeout)
+            # 如果已达到最大连接数，等待
+            return self._pool.get(block=True, timeout=self.timeout)
+    
+    def return_connection(self, conn: sqlite3.Connection):
+        """将连接返回池中"""
+        try:
+            self._pool.put(conn, block=False)
+        except:
+            # 如果池已满，关闭连接
+            conn.close()
+            with self._lock:
+                self._connections_created -= 1
+    
+    def close_all(self):
+        """关闭所有连接"""
+        while not self._pool.empty():
+            try:
+                conn = self._pool.get(block=False)
+                conn.close()
+            except Empty:
+                break
+        with self._lock:
+            self._connections_created = 0
+
+
 class DatabaseManager:
     """数据库连接管理器"""
     
-    def __init__(self, db_file: str):
+    def __init__(self, db_file: str, pool_size: int = 5):
         self.db_file = db_file
+        self.pool = SQLiteConnectionPool(db_file, max_connections=pool_size)
         self.init_db()
-        
+    
+    @contextmanager
     def get_connection(self):
-        """获取当前线程的数据库连接"""
-        if not hasattr(thread_local, 'connection'):
-            thread_local.connection = sqlite3.connect(self.db_file)
-            thread_local.connection.row_factory = sqlite3.Row
-        return thread_local.connection
+        """获取数据库连接的上下文管理器"""
+        conn = None
+        try:
+            conn = self.pool.get_connection()
+            yield conn
+        finally:
+            if conn:
+                self.pool.return_connection(conn)
     
     @contextmanager
     def get_cursor(self):
         """上下文管理器用于获取游标，自动处理异常"""
-        conn = self.get_connection()
-        cursor = None
-        try:
-            cursor = conn.cursor()
-            yield cursor
-            conn.commit()
-        except sqlite3.Error:
-            conn.rollback()
-            raise
-        finally:
-            if cursor:
-                cursor.close()
+        with self.get_connection() as conn:
+            cursor = None
+            try:
+                cursor = conn.cursor()
+                yield cursor
+                conn.commit()
+            except sqlite3.Error:
+                conn.rollback()
+                raise
+            finally:
+                if cursor:
+                    cursor.close()
     
     def init_db(self):
         """初始化数据库表"""
@@ -110,11 +170,9 @@ class DatabaseManager:
             cursor.execute(query, params or ())
             return cursor.rowcount
     
-    def close_connection(self):
-        """关闭当前线程的数据库连接"""
-        if hasattr(thread_local, 'connection'):
-            thread_local.connection.close()
-            del thread_local.connection
+    def close_all_connections(self):
+        """关闭所有连接"""
+        self.pool.close_all()
 
 
 class ConversationRepository:
