@@ -10,8 +10,6 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse, parse_qs
 
 
-
-
 class SearchEngine(ABC):
     
     """搜索引擎抽象基类"""
@@ -248,26 +246,24 @@ class DuckDuckGoSearchEngine(SearchEngine):
         self.link_selector = "a.result__a"
         self.snippet_selector = "a.result__snippet"
         self.next_page_selector = "div.nav-link form"
-        self.method = "POST"
     
     
     def _fetch_search_page(self, query, page, lang):
-        params = {self.param: query}
+        params = {
+            self.param: query,
+            'kl': lang if lang else 'wt-wt'
+        }
+        
+        if page > 0:
+            params['s'] = str(page * 30)
         
         try:
-            if self.method == "POST":
-                response = self.session.post(self.url, data=params, timeout=self.timeout)
-            else:
-                response = self.session.get(self.url, params=params, timeout=self.timeout)
-            
+            response = self.session.post(self.url, data=params, timeout=self.timeout)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
             return self._parse_results(soup)
             
-        except requests.RequestException as e:
-            print(f"DuckDuckGo请求出错: {e}")
-            return []
         except Exception as e:
             print(f"DuckDuckGo解析出错: {e}")
             return []
@@ -328,7 +324,7 @@ class SearchEngineCrawler:
         self.delay = delay
         self.timeout = timeout
     
-    def search(self, query, engine="google", num_results=10, lang="en"):
+    def search(self, query, engine="bing", num_results=10, lang="zh"):
         """执行搜索并返回结果"""
         search_engine = SearchEngineFactory.create_engine(
             engine, self.user_agent, self.delay, self.timeout
