@@ -32,40 +32,58 @@
   </div>
 </template>
 
-<script setup>
-import { defineProps, ref, watch, nextTick } from 'vue'
-
-const props = defineProps({
-  messages: {
-    type: Array,
-    required: true
+<script>
+export default {
+  name: 'MessageList',
+  
+  props: {
+    messages: {
+      type: Array,
+      required: true
+    },
+    isLoading: {
+      type: Boolean,
+      default: false
+    }
   },
-  isLoading: {
-    type: Boolean,
-    default: false
+  
+  methods: {
+    // 格式化时间
+    formatTime(timestamp) {
+      return new Date(timestamp).toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      })
+    },
+    
+    // 滚动到底部
+    scrollToBottom() {
+      this.$nextTick(() => {
+        if (this.$refs.messagesContainer) {
+          this.$refs.messagesContainer.scrollTop = this.$refs.messagesContainer.scrollHeight
+        }
+      })
+    }
+  },
+  
+  watch: {
+    // 监听消息变化，自动滚动
+    messages: {
+      handler() {
+        this.scrollToBottom()
+      },
+      deep: true
+    }
+  },
+  
+  mounted() {
+    this.scrollToBottom()
   }
-})
-
-const messagesContainer = ref(null)
-
-// 自动滚动到底部
-watch(() => props.messages, async () => {
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
-}, { deep: true })
-
-// 格式化时间
-const formatTime = (timestamp) => {
-  return new Date(timestamp).toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  })
 }
 </script>
 
 <style scoped>
+/* 样式保持不变 */
 .message-list {
   flex: 1;
   overflow-y: auto;

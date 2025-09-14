@@ -22,52 +22,72 @@
   </div>
 </template>
 
-<script setup>
-import { ref, watch, nextTick, defineEmits, defineProps } from 'vue'
-
-const emit = defineEmits(['send-message'])
-const props = defineProps({
-  isLoading: {
-    type: Boolean,
-    default: false
-  }
-})
-
-const inputText = ref('')
-const textareaRef = ref(null)
-
-// 发送消息
-const sendMessage = () => {
-  if (inputText.value.trim() && !props.isLoading) {
-    emit('send-message', inputText.value.trim())
-    inputText.value = ''
-    adjustTextareaHeight()
+<script>
+export default {
+  name: 'InputArea',
+  
+  props: {
+    isLoading: {
+      type: Boolean,
+      default: false
+    }
+  },
+  
+  data() {
+    return {
+      inputText: ''
+    }
+  },
+  
+  methods: {
+    // 发送消息
+    sendMessage() {
+      if (this.inputText.trim() && !this.isLoading) {
+        this.$emit('send-message', this.inputText.trim())
+        this.inputText = ''
+        this.$nextTick(() => {
+          this.adjustTextareaHeight()
+        })
+      }
+    },
+    
+    // 处理回车键
+    handleEnter(event) {
+      if (event.shiftKey) {
+        // Shift+Enter 换行
+        this.inputText += '\n'
+        this.$nextTick(() => {
+          this.adjustTextareaHeight()
+        })
+      } else {
+        // Enter 发送消息
+        this.sendMessage()
+      }
+    },
+    
+    // 自动调整文本区域高度
+    adjustTextareaHeight() {
+      if (this.$refs.textareaRef) {
+        this.$refs.textareaRef.style.height = 'auto'
+        this.$refs.textareaRef.style.height = Math.min(this.$refs.textareaRef.scrollHeight, 120) + 'px'
+      }
+    }
+  },
+  
+  watch: {
+    // 监听输入文本变化
+    inputText() {
+      this.$nextTick(() => {
+        this.adjustTextareaHeight()
+      })
+    }
+  },
+  
+  mounted() {
+    // 初始调整高度
+    this.adjustTextareaHeight()
   }
 }
-
-// 处理回车键
-const handleEnter = (event) => {
-  if (event.shiftKey) {
-    // Shift+Enter 换行
-    inputText.value += '\n'
-    adjustTextareaHeight()
-  } else {
-    // Enter 发送消息
-    sendMessage()
-  }
-}
-
-// 自动调整文本区域高度
-const adjustTextareaHeight = async () => {
-  await nextTick()
-  if (textareaRef.value) {
-    textareaRef.value.style.height = 'auto'
-    textareaRef.value.style.height = Math.min(textareaRef.value.scrollHeight, 120) + 'px'
-  }
-}
-
-// 监听输入文本变化
-watch(inputText, adjustTextareaHeight)
 </script>
 
 <style scoped>

@@ -11,81 +11,98 @@
   </div>
 </template>
 
-<script setup>
-import { ref, reactive } from 'vue'
+<script>
 import MessageList from './MessageList.vue'
 import InputArea from './InputArea.vue'
 
-
-const messages = reactive([])
-const isLoading = ref(false)
-
-const handleSendMessage = async (inputText) => {
-  // 添加用户消息
-  messages.push({
-    id: Date.now(),
-    content: inputText,
-    sender: 'user',
-    timestamp: new Date()
-  })
+export default {
+  name: 'ChatContainer',
   
-  // 设置加载状态
-  isLoading.value = true
+  components: {
+    MessageList,
+    InputArea
+  },
   
-  try {
-    // 添加初始AI消息（空内容）
-    const aiMessageId = Date.now() + 1
-    messages.push({
-      id: aiMessageId,
-      content: '',
-      sender: 'ai',
-      timestamp: new Date(),
-      isStreaming: true
-    })
+  data() {
+    return {
+      messages: [],
+      isLoading: false
+    }
+  },
+  
+  methods: {
+    // 处理发送消息
+    async handleSendMessage(inputText) {
+      // 添加用户消息
+      this.messages.push({
+        id: Date.now(),
+        content: inputText,
+        sender: 'user',
+        timestamp: new Date()
+      })
+      
+      // 设置加载状态
+      this.isLoading = true
+      
+      try {
+        // 添加初始AI消息（空内容）
+        const aiMessageId = Date.now() + 1
+        this.messages.push({
+          id: aiMessageId,
+          content: '',
+          sender: 'ai',
+          timestamp: new Date(),
+          isStreaming: true
+        })
+        
+        // 模拟流式响应
+        const response = this.simulateStreamingResponse(inputText)
+        
+        // 处理流式数据
+        for await (const chunk of response) {
+          const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
+          if (messageIndex !== -1) {
+            this.messages[messageIndex].content += chunk
+            // 使用 Vue.set 或直接赋值确保响应式更新
+            this.$set(this.messages, messageIndex, { ...this.messages[messageIndex] })
+          }
+        }
+        
+        // 完成流式传输
+        const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
+        if (messageIndex !== -1) {
+          this.messages[messageIndex].isStreaming = false
+          this.$set(this.messages, messageIndex, { ...this.messages[messageIndex] })
+        }
+      } catch (error) {
+        console.error('Error:', error)
+        this.messages.push({
+          id: Date.now() + 2,
+          content: '抱歉，发生了错误。',
+          sender: 'ai',
+          timestamp: new Date(),
+          isError: true
+        })
+      } finally {
+        this.isLoading = false
+      }
+    },
     
-    // 模拟流式响应 - 实际中这里应该是API调用
-    const response = simulateStreamingResponse(inputText)
-    
-    // 处理流式数据
-    for await (const chunk of response) {
-      const messageIndex = messages.findIndex(m => m.id === aiMessageId)
-      if (messageIndex !== -1) {
-        messages[messageIndex].content += chunk
+    // 模拟流式响应的函数
+    async * simulateStreamingResponse(input) {
+      const responses = {
+        '你好': ['你', '好！', '有', '什', '么', '可', '以', '帮', '助', '你', '的', '吗', '？'],
+        '天气': ['今', '天', '天', '气', '晴', '朗', '，', '适', '合', '出', '门', '。'],
+        '默认': ['我', '是', '一', '个', 'AI', '助', '手', '，', '可', '以', '回', '答', '你', '的', '问', '题', '。']
+      }
+      
+      const response = responses[input] || responses['默认']
+      
+      for (const word of response) {
+        yield word
+        await new Promise(resolve => setTimeout(resolve, 100)) // 模拟延迟
       }
     }
-    
-    // 完成流式传输
-    const messageIndex = messages.findIndex(m => m.id === aiMessageId)
-    if (messageIndex !== -1) {
-      messages[messageIndex].isStreaming = false
-    }
-  } catch (error) {
-    console.error('Error:', error)
-    messages.push({
-      id: Date.now() + 2,
-      content: '抱歉，发生了错误。',
-      sender: 'ai',
-      timestamp: new Date(),
-      isError: true
-    })
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 模拟流式响应的函数
-async function* simulateStreamingResponse(input) {
-  const responses = {
-    '你好': ['你', '好！', '有', '什', '么', '可', '以', '帮', '助', '你', '的', '吗', '？'],
-    '天气': ['今', '天', '天', '气', '晴', '朗', '，', '适', '合', '出', '门', '。'],
-    '默认': ['我', '是', '一', '个', 'AI', '助', '手', '，', '可', '以', '回', '答', '你', '的', '问', '题', '。']
-  }
-  
-  const response = responses[input] || responses['默认']
-  
-  for (const word of response) {
-    yield word
-    await new Promise(resolve => setTimeout(resolve, 100)) // 模拟延迟
   }
 }
 </script>
