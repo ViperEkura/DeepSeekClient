@@ -158,7 +158,7 @@ export default {
         const controller = new AbortController()
         this.currentStreamController = controller
         
-        await this.useSSEStream(inputText, aiMessageId, controller.signal)
+        await this.useStreamPost(inputText, aiMessageId, controller.signal)
       } catch (error) {
         console.error('发送消息失败:', error)
         throw error
@@ -166,48 +166,81 @@ export default {
         this.currentStreamController = null
       }
     },
-    async useSSEStream(inputText, aiMessageId) {
+    async useStreamPost(inputText, aiMessageId) {
       return new Promise((resolve, reject) => {
-        const es = new EventSource(
-          `${this.apiBaseUrl}/conversations/${this.currentConversationId}/stream?content=${encodeURIComponent(inputText)}`
-        );
+        const controller = new AbortController();
+        this.currentStreamController = controller;
 
-        es.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'chunk') {
-              const index = this.messages.findIndex(m => m.id === aiMessageId);
-              if (index !== -1) {
-                this.messages[index].content += data.content;
-                this.$set(this.messages, index, { ...this.messages[index] });
-              }
-            } else if (data.type === 'complete') {
-              const index = this.messages.findIndex(m => m.id === aiMessageId);
-              if (index !== -1) {
-                this.messages[index].isStreaming = false;
-                this.$set(this.messages, index, { ...this.messages[index] });
-              }
-              es.close();
-              resolve();
-            }
-          } catch (err) {
-            console.error('SSE 数据解析失败:', err);
+        fetch(
+          `${this.apiBaseUrl}/conversations/${this.currentConversationId}/stream`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: inputText }),
+            signal: controller.signal
           }
-        };
+        )
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.body;
+          })
+          .then(body => {
+            const reader = body.getReader();
+            const decoder = new TextDecoder();
+            let buf = '';
 
-        es.onerror = (err) => {
-          console.error('SSE 连接错误:', err);
-          es.close();
-          reject(new Error('流式响应失败'));
-        };
+            const pump = ({ done, value }) => {
+              if (done) {                       // 流结束
+                const msgIdx = this.messages.findIndex(m => m.id === aiMessageId);
+                if (msgIdx !== -1) {
+                  this.messages[msgIdx].isStreaming = false;
+                  this.$set(this.messages, msgIdx, { ...this.messages[msgIdx] });
+                }
+                return resolve();
+              }
 
-        this.currentStreamController = {
-          abort: () => {
-            es.close();
-            resolve();
-          }
-        };
+              buf += decoder.decode(value, { stream: true });
+              const lines = buf.split('\n');
+              buf = lines.pop();                // 保留不完整行
+
+              for (const raw of lines) {
+                const line = raw.trim();
+                if (!line.startsWith('data: ')) continue;
+                const payload = line.slice(6);
+                
+                try {
+                  const msg = JSON.parse(payload);
+                  const idx = this.messages.findIndex(m => m.id === aiMessageId);
+                  if (idx === -1) continue;
+
+                  if (msg.type === 'chunk') {
+                    this.messages[idx].content += msg.content;
+                    this.$set(this.messages, idx, { ...this.messages[idx] });
+                  } else if (msg.type === 'complete') {
+                    this.messages[idx].isStreaming = false;
+                    this.$set(this.messages, idx, { ...this.messages[idx] });
+                  } else if (msg.type === 'error') {
+                    this.messages[idx].isStreaming = false;
+                    this.messages[idx].isError = true;
+                    this.messages[idx].content = msg.message || 'Stream failed';
+                    this.$set(this.messages, idx, { ...this.messages[idx] });
+                  }
+                } catch (e) {
+                  console.warn('parse error', e);
+                }
+              }
+              return reader.read().then(pump);
+            };
+            return reader.read().then(pump);
+          })
+          .catch(err => {
+            if (err.name === 'AbortError') return resolve();   // 用户中断
+            console.error('fetch stream error', err);
+            reject(err);
+          })
+          .finally(() => {
+            this.currentStreamController = null;
+          });
       });
     }
   }
