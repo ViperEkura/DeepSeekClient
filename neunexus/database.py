@@ -206,13 +206,13 @@ class MessageRepository:
     
     def create(self, conversation_id: int, role: str, content: str) -> Message:
         """创建新消息"""
-        query = "INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)"
-        rowcount = self.db.execute_command(query, (conversation_id, role, content))
-        if rowcount > 0:
-            last_id_query = "SELECT last_insert_rowid() as id"
-            result = self.db.execute_query(last_id_query)
-            return self.get_by_id(result[0]['id'])
-        return None
+        with self.db.get_cursor() as cursor:
+            cursor.execute("INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)", 
+                           (conversation_id, role, content))
+            cursor.execute("SELECT * FROM messages WHERE id = ?", (cursor.lastrowid,))
+            row = cursor.fetchone()
+        
+        return self._row_to_message(row)
     
     def get_by_conversation(self, conversation_id: int) -> List[Message]:
         """获取对话的所有消息"""
