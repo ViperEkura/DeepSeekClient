@@ -73,8 +73,7 @@ export default {
     },
     
     async createNewConversation() {
-      const title = prompt('请输入新对话的标题:');
-      if (!title) return;
+      const title = prompt('请输入新对话的标题:') || '新对话';
       
       try {
         const response = await axios.post(`${this.apiBaseUrl}/conversations`, {
@@ -120,7 +119,6 @@ export default {
     },
     
     getAvatar(title) {
-      // 根据标题生成头像
       if (!title) return '💬';
       return title.charAt(0).toUpperCase();
     },

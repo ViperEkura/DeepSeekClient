@@ -23,6 +23,9 @@
       </div>
     </div>
     
+    <div v-if="isLoading" class="thinking">
+      思考中<span class="thinking-dots"></span>
+    </div>
   </div>
 </template>
 
@@ -163,9 +166,11 @@ export default {
   background: #e6f0ff;
   border-radius: 15px;
   display: inline-block;
+  align-self: center;
 }
 
-.thinking-dots {
+.thinking-dots::after {
+  content: '';
   animation: dots 1.5s infinite;
 }
 
