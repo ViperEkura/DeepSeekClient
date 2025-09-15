@@ -221,12 +221,12 @@ class MessageRepository:
         rows = self.db.execute_query(query, (conversation_id,))
         return [self._row_to_message(row) for row in rows]
     
-    def get_recent_by_conversation(self, conversation_id: int, limit: int = 10) -> List[Message]:
+    def get_recent_by_conversation(self, conversation_id: int, limit: int = 500) -> List[Message]:
         """获取对话的最近消息"""
         query = """
             SELECT * FROM messages 
             WHERE conversation_id = ? 
-            ORDER BY timestamp DESC 
+            ORDER BY timestamp DESC
             LIMIT ?
         """
         rows = self.db.execute_query(query, (conversation_id, limit))

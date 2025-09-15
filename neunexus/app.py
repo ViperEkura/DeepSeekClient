@@ -11,12 +11,11 @@ class NeuNexusApp:
         db_manager: DatabaseManager,
         client: DeepSeekClient
     ):
-        self.client = client
         self.app = Flask(__name__)
         CORS(self.app)
         
         self.conversation_service = ConversationService(db_manager, self.app)
-        self.message_service = MessageService(db_manager, self.app)
+        self.message_service = MessageService(db_manager, self.app, client)
         
         self.conversation_service.register_routes()
         self.message_service.register_routes()
