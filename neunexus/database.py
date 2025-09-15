@@ -1,10 +1,11 @@
 import sqlite3
-from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+import threading
+
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-import threading
-from queue import Queue, Empty
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Any
+
 
 @dataclass
 class Conversation:
@@ -37,69 +38,42 @@ class BaseRepository(ABC):
         pass
 
 
-class SQLiteConnectionPool:
-    def __init__(self, db_file: str, max_connections: int = 5, timeout: int = 5):
+class SQLiteConnection:
+    def __init__(self, db_file: str, timeout: int = 5):
         self.db_file = db_file
-        self.max_connections = max_connections
         self.timeout = timeout
-        self._pool = Queue(max_connections)
-        self._connections_created = 0
-        self._lock = threading.Lock()
-        
-        # 预先创建一些连接
-        for _ in range(min(2, max_connections)):
-            self._create_connection()
+        self._connection = None
+        self._lock = threading.RLock()  # 使用可重入锁
+
     
     def _create_connection(self):
         """创建新连接"""
-        conn = sqlite3.connect(self.db_file, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        self._pool.put(conn)
-        with self._lock:
-            self._connections_created += 1
+        if self._connection is None:
+            self._connection = sqlite3.connect(self.db_file, check_same_thread=False)
+            self._connection.row_factory = sqlite3.Row
+            self._connection.execute("PRAGMA foreign_keys = ON")
     
     def get_connection(self) -> sqlite3.Connection:
-        """从池中获取连接"""
-        try:
-            # 尝试获取现有连接
-            return self._pool.get(block=True, timeout=self.timeout)
-        except Empty:
-            # 如果没有可用连接且可以创建新连接
-            with self._lock:
-                if self._connections_created < self.max_connections:
-                    self._create_connection()
-                    return self._pool.get(block=True, timeout=self.timeout)
-            # 如果已达到最大连接数，等待
-            return self._pool.get(block=True, timeout=self.timeout)
-    
-    def return_connection(self, conn: sqlite3.Connection):
-        """将连接返回池中"""
-        try:
-            self._pool.put(conn, block=False)
-        except:
-            # 如果池已满，关闭连接
-            conn.close()
-            with self._lock:
-                self._connections_created -= 1
-    
-    def close_all(self):
-        """关闭所有连接"""
-        while not self._pool.empty():
-            try:
-                conn = self._pool.get(block=False)
-                conn.close()
-            except Empty:
-                break
+        """获取数据库连接（单例模式）"""
         with self._lock:
-            self._connections_created = 0
+            if self._connection is None:
+                self._create_connection()
+            return self._connection
+    
+    def close_connection(self):
+        """关闭连接"""
+        with self._lock:
+            if self._connection:
+                self._connection.close()
+                self._connection = None
 
 
 class DatabaseManager:
-    """数据库连接管理器"""
+    """数据库连接管理器（单连接版本）"""
     
-    def __init__(self, db_file: str, pool_size: int = 5):
+    def __init__(self, db_file: str):
         self.db_file = db_file
-        self.pool = SQLiteConnectionPool(db_file, max_connections=pool_size)
+        self.pool = SQLiteConnection(db_file)
         self.init_db()
     
     @contextmanager
@@ -108,10 +82,10 @@ class DatabaseManager:
         conn = None
         try:
             conn = self.pool.get_connection()
-            yield conn
+            yield conn 
         finally:
             if conn:
-                self.pool.return_connection(conn)
+                self.pool.close_connection()
     
     @contextmanager
     def get_cursor(self):
@@ -169,10 +143,6 @@ class DatabaseManager:
         with self.get_cursor() as cursor:
             cursor.execute(query, params or ())
             return cursor.rowcount
-    
-    def close_all_connections(self):
-        """关闭所有连接"""
-        self.pool.close_all()
 
 
 class ConversationRepository:
@@ -189,14 +159,11 @@ class ConversationRepository:
     
     def create(self, title: str) -> Conversation:
         """创建新的对话"""
-        query = "INSERT INTO conversations (title) VALUES (?)"
-        rowcount = self.db.execute_command(query, (title,))
-        if rowcount > 0:
-            # 获取最后插入的ID
-            last_id_query = "SELECT last_insert_rowid() as id"
-            result = self.db.execute_query(last_id_query)
-            return self.get_by_id(result[0]['id'])
-        return None
+        with self.db.get_cursor() as cursor:
+            cursor.execute("INSERT INTO conversations (title) VALUES (?)", (title,))
+            cursor.execute("SELECT * FROM conversations WHERE id = ?", (cursor.lastrowid,))
+            row = cursor.fetchone()
+        return self._row_to_conversation(row)
     
     def get_all(self) -> List[Conversation]:
         """获取所有对话"""
@@ -244,6 +211,7 @@ class MessageRepository:
         if rowcount > 0:
             last_id_query = "SELECT last_insert_rowid() as id"
             result = self.db.execute_query(last_id_query)
+            print(result)
             return self.get_by_id(result[0]['id'])
         return None
     
