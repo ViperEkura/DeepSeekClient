@@ -89,8 +89,18 @@ export default {
         await this.createNewConversation(inputText)
         return
       }
-      
-      // 添加用户消息到界面
+
+      try {
+        await axios.post(
+          `${this.apiBaseUrl}/conversations/${this.currentConversationId}/messages`,
+          { role: 'user', content: inputText }
+        )
+      } catch (e) {
+        console.error('保存用户消息失败:', e)
+        alert('保存用户消息失败，请检查网络')
+        return
+      }
+
       const userMessage = {
         id: Date.now(),
         content: inputText,
@@ -98,34 +108,28 @@ export default {
         timestamp: new Date()
       }
       this.messages.push(userMessage)
-      
+
       this.isLoading = true
-      
+      const aiMessageId = Date.now() + 1
+      const aiMessage = {
+        id: aiMessageId,
+        content: '',
+        sender: 'system',
+        timestamp: new Date(),
+        isStreaming: true
+      }
+      this.messages.push(aiMessage)
+
       try {
-        // 创建AI消息占位符
-        const aiMessageId = Date.now() + 1
-        const aiMessage = {
-          id: aiMessageId,
-          content: '',
-          sender: 'system',
-          timestamp: new Date(),
-          isStreaming: true
-        }
-        this.messages.push(aiMessage)
-        
-        // 发送消息到服务器并处理流式响应
         await this.sendMessageToServer(inputText, aiMessageId)
-        
       } catch (error) {
         console.error('发送消息失败:', error)
-        // 找到AI消息并标记为错误
-        const aiMessageIndex = this.messages.findIndex(m => m.isStreaming)
-        if (aiMessageIndex !== -1) {
-          this.messages[aiMessageIndex].isStreaming = false
-          this.messages[aiMessageIndex].content = '抱歉，发生了错误。'
-          this.messages[aiMessageIndex].isError = true
-          // 使用Vue.set确保响应式更新
-          this.$set(this.messages, aiMessageIndex, {...this.messages[aiMessageIndex]})
+        const idx = this.messages.findIndex(m => m.id === aiMessageId)
+        if (idx !== -1) {
+          this.messages[idx].isStreaming = false
+          this.messages[idx].isError = true
+          this.messages[idx].content = '抱歉，发生了错误。'
+          this.$set(this.messages, idx, { ...this.messages[idx] })
         }
       } finally {
         this.isLoading = false
