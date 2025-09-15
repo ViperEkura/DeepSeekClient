@@ -180,7 +180,7 @@ class MessageService:
             '/conversations/<int:conversation_id>/stream',
             'stream_message',
             self.stream_message,
-            methods=['POST']
+            methods=['get']
         )
         
         # 获取特定消息
@@ -284,42 +284,39 @@ class MessageService:
     
     @handle_errors
     def stream_message(self, conversation_id: int) -> Response:
-        """流式处理消息并保存到数据库"""
-        data = request.get_json()
-        if not data:
-            return jsonify({'message': 'No JSON data provided'}), 400
-        
-        content = data.get('content')
-        if not content or not isinstance(content, str):
-            return jsonify({'message': 'Content is required and must be a string'}), 400
-        
+        """流式处理消息并保存到数据库(SSE)"""
+        content = request.args.get('content', '').strip()
+        if not content:
+            return jsonify({'message': 'content query parameter is required'}), 400
+
         histories = self.message_repo.get_recent_by_conversation(conversation_id)
         history_messages = [
-            {"role": msg.role, "content": msg.content} 
+            {"role": msg.role, "content": msg.content}
             for msg in histories
         ]
-        
+
         def generate():
-            full_response_list = []
+            full_response = []
             try:
                 for chunk, _ in self.client.stream_chat(content, histories=history_messages):
-                    full_response_list.append(chunk)
-                    yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
-                
-                yield "data: [DONE]\n\n"
-                self.message_repo.create(conversation_id, 'assistant', "".join(full_response_list))
-                
+                    full_response.append(chunk)
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+
+                # 标记完成
+                yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+
+                # 保存完整回复
+                self.message_repo.create(conversation_id, 'assistant', "".join(full_response))
+
             except Exception as e:
                 self.app.logger.error(f"Stream error: {str(e)}")
-                yield f"data: {json.dumps({'error': 'Stream processing failed'})}\n\n"
-        
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Stream processing failed'})}\n\n"
 
-        response = Response(
+        return Response(
             stream_with_context(generate()),
-            mimetype='text/event-stream'
+            mimetype='text/event-stream',
+            headers={'Cache-Control': 'no-cache'}
         )
-        
-        return response
     
     
     @handle_errors

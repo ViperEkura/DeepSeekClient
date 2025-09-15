@@ -166,87 +166,49 @@ export default {
         this.currentStreamController = null
       }
     },
-    
-    async useSSEStream(inputText, aiMessageId, signal) {
+    async useSSEStream(inputText, aiMessageId) {
       return new Promise((resolve, reject) => {
-        // 使用 fetch 发起 POST 请求
-        fetch(`${this.apiBaseUrl}/conversations/${this.currentConversationId}/stream`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            content: inputText
-          }),
-          signal // 传递AbortSignal以便可以取消请求
-        }).then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
-          }
+        const es = new EventSource(
+          `${this.apiBaseUrl}/conversations/${this.currentConversationId}/stream?content=${encodeURIComponent(inputText)}`
+        );
 
-          const reader = response.body.getReader()
-          const decoder = new TextDecoder()
-          let buffer = ''
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
 
-          // 处理流式数据
-          const processStream = ({ done, value }) => {
-            if (done) {
-              // 完成流式传输，更新消息状态
-              const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
-              if (messageIndex !== -1) {
-                this.messages[messageIndex].isStreaming = false
-                // 使用Vue.set确保响应式更新
-                this.$set(this.messages, messageIndex, {...this.messages[messageIndex]})
+            if (data.type === 'chunk') {
+              const index = this.messages.findIndex(m => m.id === aiMessageId);
+              if (index !== -1) {
+                this.messages[index].content += data.content;
+                this.$set(this.messages, index, { ...this.messages[index] });
               }
-              resolve()
-              return
-            }
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() // 保留未完成的行
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6))
-                  
-                  if (data.type === 'chunk') {
-                    // 更新流式消息内容
-                    const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
-                    if (messageIndex !== -1) {
-                      this.messages[messageIndex].content += data.content
-                      // 使用Vue.set确保响应式更新
-                      this.$set(this.messages, messageIndex, {...this.messages[messageIndex]})
-                    }
-                  } else if (data.type === 'complete') {
-                    // 完成流式传输
-                    const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
-                    if (messageIndex !== -1) {
-                      this.messages[messageIndex].isStreaming = false
-                      this.$set(this.messages, messageIndex, {...this.messages[messageIndex]})
-                    }
-                  }
-                } catch (parseError) {
-                  console.error('解析SSE数据失败:', parseError)
-                }
+            } else if (data.type === 'complete') {
+              const index = this.messages.findIndex(m => m.id === aiMessageId);
+              if (index !== -1) {
+                this.messages[index].isStreaming = false;
+                this.$set(this.messages, index, { ...this.messages[index] });
               }
+              es.close();
+              resolve();
             }
-
-            return reader.read().then(processStream)
+          } catch (err) {
+            console.error('SSE 数据解析失败:', err);
           }
+        };
 
-          return reader.read().then(processStream)
-        }).catch(error => {
-          if (error.name === 'AbortError') {
-            console.log('请求已被取消')
-            resolve() // 如果是主动取消，不视为错误
-          } else {
-            console.error('请求失败:', error)
-            reject(error)
+        es.onerror = (err) => {
+          console.error('SSE 连接错误:', err);
+          es.close();
+          reject(new Error('流式响应失败'));
+        };
+
+        this.currentStreamController = {
+          abort: () => {
+            es.close();
+            resolve();
           }
-        })
-      })
+        };
+      });
     }
   }
 }
