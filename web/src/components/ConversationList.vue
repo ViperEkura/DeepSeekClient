@@ -191,13 +191,14 @@ export default {
 }
 
 .search-box {
-  padding: 0 15px 15px;
+  padding: 15px;
+  height: 30px;
 }
 
 .search-box input {
   width: 100%;
-  padding: 10px 15px;
-  border-radius: 20px;
+  height: 100%;
+  border-radius: 25px;
   border: none;
   background: #2a4a7c;
   color: white;

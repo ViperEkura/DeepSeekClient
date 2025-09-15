@@ -27,7 +27,7 @@
 </template>
 
 <script>
-import { marked } from 'marked'
+import MarkdownIt from 'markdown-it'
 
 export default {
   name: 'MessageList',
@@ -49,7 +49,12 @@ export default {
   
   methods: {
     renderMarkdown(content) {
-      return marked(content)
+      const md = new MarkdownIt({
+        html: false,
+        linkify: true,
+        typographer: false
+      })
+      return md.render(content)
     },
     formatTime(timestamp) {
       return new Date(timestamp).toLocaleTimeString([], { 
@@ -130,8 +135,8 @@ export default {
 }
 
 .message-text {
-  padding: 14px 18px;
-  border-radius: 18px;
+  padding: 0px 18px;
+  border-radius: 15px;
   background-color: white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   position: relative;
@@ -181,5 +186,4 @@ export default {
   40% { content: '..'; }
   60%, 100% { content: '...'; }
 }
-
 </style>
