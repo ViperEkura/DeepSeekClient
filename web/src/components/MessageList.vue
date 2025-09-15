@@ -23,12 +23,6 @@
       </div>
     </div>
     
-    <div v-if="isLoading" class="message message-ai">
-      <div class="message-avatar">🤖</div>
-      <div class="message-content">
-        <div class="thinking">思考中<span class="thinking-dots">...</span></div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -40,6 +34,10 @@ export default {
     messages: {
       type: Array,
       required: true
+    },
+    conversationId: {
+      type: String,
+      required: false
     },
     isLoading: {
       type: Boolean,

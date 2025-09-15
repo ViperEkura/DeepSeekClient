@@ -25,7 +25,7 @@
           <div class="preview">{{ formatDate(conv.created_at) }}</div>
         </div>
         <div class="time">{{ formatTime(conv.created_at) }}</div>
-        <button class="delete-btn" @click.stop="deleteConversation(conv.conversation_id)">×</button>
+        <button class="delete-btn" @click.stop="deleteConversation(conv.conversation_id)">x</button>
       </div>
     </div>
   </div>
