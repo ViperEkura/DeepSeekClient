@@ -5,7 +5,7 @@
       <MessageList 
         :messages="messages" 
         :is-loading="isLoading"
-        :conversation-id="currentConversationId"
+        :conversation-id="currentConversationId ? currentConversationId.toString() : null"
       />
       <InputArea 
         @send-message="handleSendMessage"
@@ -36,14 +36,18 @@ export default {
       isLoading: false,
       currentConversationId: null,
       apiBaseUrl: 'http://localhost:5000',
-      eventSource: null
+      eventSource: null,
+      currentStreamController: null // 用于中止当前流式请求
     }
   },
   
   beforeUnmount() {
-    // 组件销毁前关闭SSE连接
+    // 组件销毁前关闭SSE连接和取消请求
     if (this.eventSource) {
       this.eventSource.close()
+    }
+    if (this.currentStreamController) {
+      this.currentStreamController.abort()
     }
   },
   
@@ -68,7 +72,7 @@ export default {
         this.messages = response.data.map(msg => ({
           id: msg.message_id,
           content: msg.content,
-          sender: msg.role === 'user' ? 'user' : 'ai',
+          sender: msg.role === 'user' ? 'user' : 'system',
           timestamp: new Date(msg.created_at)
         }))
       } catch (error) {
@@ -103,7 +107,7 @@ export default {
         const aiMessage = {
           id: aiMessageId,
           content: '',
-          sender: 'ai',
+          sender: 'system',
           timestamp: new Date(),
           isStreaming: true
         }
@@ -114,13 +118,15 @@ export default {
         
       } catch (error) {
         console.error('发送消息失败:', error)
-        this.messages.push({
-          id: Date.now() + 2,
-          content: '抱歉，发生了错误。',
-          sender: 'ai',
-          timestamp: new Date(),
-          isError: true
-        })
+        // 找到AI消息并标记为错误
+        const aiMessageIndex = this.messages.findIndex(m => m.isStreaming)
+        if (aiMessageIndex !== -1) {
+          this.messages[aiMessageIndex].isStreaming = false
+          this.messages[aiMessageIndex].content = '抱歉，发生了错误。'
+          this.messages[aiMessageIndex].isError = true
+          // 使用Vue.set确保响应式更新
+          this.$set(this.messages, aiMessageIndex, {...this.messages[aiMessageIndex]})
+        }
       } finally {
         this.isLoading = false
       }
@@ -148,114 +154,99 @@ export default {
     
     async sendMessageToServer(inputText, aiMessageId) {
       try {
-        // 首先尝试使用SSE流式接口
-        try {
-          await this.useSSEStream(inputText, aiMessageId)
-        } catch (sseError) {
-          console.warn('SSE流式接口失败，尝试普通接口:', sseError)
-          await this.useRegularApi(inputText, aiMessageId)
-        }
+        // 使用AbortController以便可以取消请求
+        const controller = new AbortController()
+        this.currentStreamController = controller
         
+        await this.useSSEStream(inputText, aiMessageId, controller.signal)
       } catch (error) {
         console.error('发送消息失败:', error)
         throw error
+      } finally {
+        this.currentStreamController = null
       }
     },
     
-    async useSSEStream(inputText, aiMessageId) {
+    async useSSEStream(inputText, aiMessageId, signal) {
       return new Promise((resolve, reject) => {
-        // 使用POST请求发送内容
-        const eventSource = new EventSource(
-          `${this.apiBaseUrl}/conversations/${this.currentConversationId}/stream`
-        )
-        
-        this.eventSource = eventSource
-        
-        // 先发送消息内容
-        axios.post(`${this.apiBaseUrl}/conversations/${this.currentConversationId}/stream`, {
-          content: inputText
-        }).catch(err => {
-          console.error('发送消息内容失败:', err)
-        })
-        
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data)
-            
-            if (data.type === 'chunk') {
-              // 更新流式消息内容
-              const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
-              if (messageIndex !== -1) {
-                this.messages[messageIndex].content += data.content
-                this.$set(this.messages, messageIndex, { ...this.messages[messageIndex] })
-              }
-            } else if (data.type === 'complete') {
-              // 完成流式传输
+        // 使用 fetch 发起 POST 请求
+        fetch(`${this.apiBaseUrl}/conversations/${this.currentConversationId}/stream`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: inputText
+          }),
+          signal // 传递AbortSignal以便可以取消请求
+        }).then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
+
+          // 处理流式数据
+          const processStream = ({ done, value }) => {
+            if (done) {
+              // 完成流式传输，更新消息状态
               const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
               if (messageIndex !== -1) {
                 this.messages[messageIndex].isStreaming = false
-                this.$set(this.messages, messageIndex, { ...this.messages[messageIndex] })
+                // 使用Vue.set确保响应式更新
+                this.$set(this.messages, messageIndex, {...this.messages[messageIndex]})
               }
-              eventSource.close()
               resolve()
+              return
             }
-          } catch (parseError) {
-            console.error('解析SSE数据失败:', parseError)
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() // 保留未完成的行
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6))
+                  
+                  if (data.type === 'chunk') {
+                    // 更新流式消息内容
+                    const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
+                    if (messageIndex !== -1) {
+                      this.messages[messageIndex].content += data.content
+                      // 使用Vue.set确保响应式更新
+                      this.$set(this.messages, messageIndex, {...this.messages[messageIndex]})
+                    }
+                  } else if (data.type === 'complete') {
+                    // 完成流式传输
+                    const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
+                    if (messageIndex !== -1) {
+                      this.messages[messageIndex].isStreaming = false
+                      this.$set(this.messages, messageIndex, {...this.messages[messageIndex]})
+                    }
+                  }
+                } catch (parseError) {
+                  console.error('解析SSE数据失败:', parseError)
+                }
+              }
+            }
+
+            return reader.read().then(processStream)
           }
-        }
-        
-        eventSource.onerror = (error) => {
-          console.error('SSE连接错误:', error)
-          eventSource.close()
-          reject(error)
-        }
-        
-        // 设置超时，防止SSE连接长时间不关闭
-        setTimeout(() => {
-          if (eventSource.readyState !== EventSource.CLOSED) {
-            eventSource.close()
-            reject(new Error('SSE连接超时'))
+
+          return reader.read().then(processStream)
+        }).catch(error => {
+          if (error.name === 'AbortError') {
+            console.log('请求已被取消')
+            resolve() // 如果是主动取消，不视为错误
+          } else {
+            console.error('请求失败:', error)
+            reject(error)
           }
-        }, 30000) // 30秒超时
+        })
       })
-    },
-    
-    async useRegularApi(inputText, aiMessageId) {
-      try {
-        // 使用普通API接口发送消息
-        const response = await axios.post(
-          `${this.apiBaseUrl}/conversations/${this.currentConversationId}/messages`,
-          {
-            role: 'user',
-            content: inputText
-          }
-        )
-        
-        if (response.status === 201) {
-          // 模拟流式效果
-          const aiResponse = "这是AI的回复（流式接口不可用，使用普通接口）"
-          const words = aiResponse.split('')
-          
-          for (const word of words) {
-            await new Promise(resolve => setTimeout(resolve, 50))
-            const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
-            if (messageIndex !== -1) {
-              this.messages[messageIndex].content += word
-              this.$set(this.messages, messageIndex, { ...this.messages[messageIndex] })
-            }
-          }
-          
-          // 完成流式传输
-          const messageIndex = this.messages.findIndex(m => m.id === aiMessageId)
-          if (messageIndex !== -1) {
-            this.messages[messageIndex].isStreaming = false
-            this.$set(this.messages, messageIndex, { ...this.messages[messageIndex] })
-          }
-        }
-      } catch (error) {
-        console.error('普通接口发送消息失败:', error)
-        throw error
-      }
     }
   }
 }

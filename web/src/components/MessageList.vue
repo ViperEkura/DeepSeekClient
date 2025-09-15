@@ -24,7 +24,7 @@
     </div>
     
     <div v-if="isLoading" class="thinking">
-      思考中<span class="thinking-dots"></span>
+      加载中<span class="thinking-dots"></span>
     </div>
   </div>
 </template>
