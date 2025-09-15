@@ -2,7 +2,7 @@ from functools import wraps
 from typing import Any, Callable
 from neunexus.database import DatabaseManager, ConversationRepository, MessageRepository
 from flask import Flask, Response, jsonify, request
-
+from flask_cors import CORS
 
 def handle_errors(func: Callable) -> Callable:
     """处理控制器方法错误的装饰器"""
@@ -318,6 +318,8 @@ class MessageService:
 class NeuNexusApp:
     def __init__(self, db_manager: DatabaseManager):
         self.app = Flask(__name__)
+        CORS(self.app)
+        
         self.conversation_service = ConversationService(db_manager, self.app)
         self.message_service = MessageService(db_manager, self.app)
         
