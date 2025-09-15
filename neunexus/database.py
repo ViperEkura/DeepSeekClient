@@ -211,7 +211,6 @@ class MessageRepository:
         if rowcount > 0:
             last_id_query = "SELECT last_insert_rowid() as id"
             result = self.db.execute_query(last_id_query)
-            print(result)
             return self.get_by_id(result[0]['id'])
         return None
     

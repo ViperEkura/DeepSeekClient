@@ -14,7 +14,7 @@ if __name__ == "__main__":
     api_key, base_url, init_prompt = config_loader()
     
     db_manager = DatabaseManager("./neunexus.db")
-    client = DeepSeekClient(api_key, base_url, init_prompt)
+    client = DeepSeekClient(api_key=api_key, base_url=base_url, init_prompt=init_prompt)
     app = NeuNexusApp(db_manager, client)
     
     app.run(port=5000)

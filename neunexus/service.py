@@ -298,11 +298,11 @@ class MessageService:
             {"role": msg.role, "content": msg.content} 
             for msg in histories
         ]
-    
+        
         def generate():
             full_response_list = []
             try:
-                for chunk in self.client.stream_chat(content, histories=history_messages):
+                for chunk, _ in self.client.stream_chat(content, histories=history_messages):
                     full_response_list.append(chunk)
                     yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
                 
