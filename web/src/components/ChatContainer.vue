@@ -73,7 +73,7 @@ export default {
           id: msg.message_id,
           content: msg.content,
           sender: msg.role === 'user' ? 'user' : 'system',
-          timestamp: new Date(msg.created_at)
+          timestamp: msg.timestamp
         }))
       } catch (error) {
         console.error('加载消息失败:', error)
