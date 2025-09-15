@@ -10,12 +10,9 @@
         <span v-else>🤖</span>
       </div>
       <div class="message-content">
-        <div class="message-text">
-          {{ message.content }}
-          <span 
-            v-if="message.isStreaming" 
-            class="streaming-cursor"
-          >|</span>
+        <div class="message-text markdown-body">
+          <span v-html="renderMarkdown(message.content)"></span>
+          <span v-if="message.isStreaming" class="streaming-cursor">|</span>
         </div>
         <div class="message-time">
           {{ formatTime(message.timestamp) }}
@@ -30,6 +27,8 @@
 </template>
 
 <script>
+import { marked } from 'marked'
+
 export default {
   name: 'MessageList',
   
@@ -49,6 +48,9 @@ export default {
   },
   
   methods: {
+    renderMarkdown(content) {
+      return marked(content)
+    },
     formatTime(timestamp) {
       return new Date(timestamp).toLocaleTimeString([], { 
         hour: '2-digit', 
@@ -179,4 +181,5 @@ export default {
   40% { content: '..'; }
   60%, 100% { content: '...'; }
 }
+
 </style>

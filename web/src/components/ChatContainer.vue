@@ -207,8 +207,7 @@ export default {
               const lines = buf.split('\n');
               buf = lines.pop();                // 保留不完整行
 
-              for (const raw of lines) {
-                const line = raw.trim();
+              for (const line of lines) {
                 if (!line.startsWith('data: ')) continue;
                 const payload = line.slice(6);
                 
