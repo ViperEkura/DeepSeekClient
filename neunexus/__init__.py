@@ -5,7 +5,8 @@ from neunexus.crawler import SearchEngineCrawler, PageCrawler
 from neunexus.database import DatabaseManager, ConversationRepository, MessageRepository
 from neunexus.client import DeepSeekClient
 from neunexus.retriever import Retriever
-from neunexus.service import NeuNexusApp, ConversationService, MessageService
+from neunexus.service import ConversationService, MessageService
+from neunexus.app import NeuNexusApp
 
 __all__ = [
     # crawler
@@ -24,7 +25,9 @@ __all__ = [
     "Retriever",
     
     # service
-    "NeuNexusApp",
     "ConversationService",
     "MessageService",
+    
+    # app
+    "NeuNexusApp",
 ]

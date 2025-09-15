@@ -1,4 +1,4 @@
-from neunexus.service import NeuNexusApp, DatabaseManager
+from neunexus import NeuNexusApp, DatabaseManager
 import json
  
 
