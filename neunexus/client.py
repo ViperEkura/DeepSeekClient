@@ -3,7 +3,13 @@ from typing import List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class DeepSeekClient:
-    def __init__(self, api_key, base_url, model="deepseek-chat", init_prompt="你是一个人工智能助手"):
+    def __init__(
+        self, 
+        api_key, 
+        base_url="https://api.deepseek.com", 
+        model="deepseek-chat", 
+        init_prompt="你是一个人工智能助手"
+    ):
         self.model = model
         self.init_prompt = init_prompt
         self.client = OpenAI(api_key=api_key, base_url=base_url)
