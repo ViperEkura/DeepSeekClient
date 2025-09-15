@@ -110,7 +110,7 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS conversations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     title TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT (datetime('now', 'localtime'))
                 )
             """,
             'messages': """
@@ -119,7 +119,7 @@ class DatabaseManager:
                     conversation_id INTEGER,
                     role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
                     content TEXT NOT NULL,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    timestamp TIMESTAMP DEFAULT (datetime('now', 'localtime')),
                     FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
                 )
             """
