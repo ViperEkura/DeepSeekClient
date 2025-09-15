@@ -382,34 +382,4 @@ class PageCrawler:
             }
     
         except Exception as e:
-            print(f"trafilatura提取失败 {e}")
-
-
-if __name__ == "__main__":
-    search_crawler = SearchEngineCrawler(delay=0.5)
-    page_crawler = PageCrawler(delay=0.5)
-    
-    try:
-        results = search_crawler.search("Python编程教程", engine="baidu", num_results=3, lang="zh")
-        
-        print(f"找到 {len(results)} 条结果:")
-        for i, result in enumerate(results, 1):
-            print(f"\n{'='*80}")
-            print(f"{i}. 标题: {result['title']}")
-            print(f"   链接: {result['link']}")
-            print(f"   摘要: {result['snippet'][:100]}...")
-            
-            # 抓取该页面的正文内容
-            print(f"   正在抓取页面内容...")
-            page_content = page_crawler.fetch_page_content(result['link'])
-            
-            if "error" not in page_content:
-                print(f"   页面标题: {page_content.get('title', '无')}")
-                print(f"   正文长度: {page_content.get('word_count', 0)} 词")
-                print(f"   正文预览: \n{page_content.get('content', '')[:300]}...")
-            else:
-                print(f"   页面抓取失败: {page_content['error']}")
-                
-    except Exception as e:
-        print(f"搜索出错: {e}")
-    
+            print(f"trafilatura提取失败 {e}")    
