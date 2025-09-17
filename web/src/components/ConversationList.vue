@@ -33,6 +33,7 @@
 
 <script>
 import axios from 'axios';
+import { chatStore } from '@/store/chatStore';
 
 export default {
   name: 'ConversationList',
@@ -40,13 +41,17 @@ export default {
   data() {
     return {
       searchQuery: '',
-      conversations: [],
-      activeConversationId: null,
       apiBaseUrl: 'http://localhost:5000'
     }
   },
   
   computed: {
+    conversations() {
+      return chatStore.conversations
+    },
+    activeConversationId() {
+      return chatStore.currentConversationId
+    },
     filteredConversations() {
       if (!this.searchQuery) return this.conversations
       
@@ -65,7 +70,7 @@ export default {
     async fetchConversations() {
       try {
         const response = await axios.get(`${this.apiBaseUrl}/conversations`);
-        this.conversations = response.data;
+        chatStore.updateConversations(response.data);
       } catch (error) {
         console.error('获取对话列表失败:', error);
         alert('获取对话列表失败，请检查网络连接');
@@ -81,7 +86,7 @@ export default {
         });
         
         if (response.status === 201) {
-          this.conversations.unshift(response.data);
+          chatStore.addConversation(response.data);
           this.selectConversation(response.data);
           alert('对话创建成功');
         }
@@ -98,13 +103,7 @@ export default {
         const response = await axios.delete(`${this.apiBaseUrl}/conversations/${conversationId}`);
         
         if (response.status === 200) {
-          this.conversations = this.conversations.filter(conv => conv.conversation_id !== conversationId);
-          
-          if (this.activeConversationId === conversationId) {
-            this.activeConversationId = null;
-            this.$emit('conversation-selected', null);
-          }
-          
+          chatStore.removeConversation(conversationId);
           alert('对话删除成功');
         }
       } catch (error) {
@@ -114,7 +113,6 @@ export default {
     },
     
     selectConversation(conversation) {
-      this.activeConversationId = conversation.conversation_id;
       this.$emit('conversation-selected', conversation);
     },
     

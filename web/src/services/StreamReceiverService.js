@@ -1,6 +1,7 @@
 class StreamReceiverService {
   constructor() {
-    this.activeStreams = new Map() // key: conversationId, value: { messages[], controller }
+    this.activeStreams = new Map() // key: conversationId, value: { messages[], controller, isDone }
+    this.connectionTimeout = 30000 // 30秒连接超时
   }
 
   startStream(conversationId, inputText, apiBaseUrl) {
@@ -10,6 +11,11 @@ class StreamReceiverService {
     }
 
     const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      controller.abort()
+      console.error('Stream connection timeout')
+    }, this.connectionTimeout)
+
     const streamData = {
       messages: [],
       controller,
@@ -23,7 +29,13 @@ class StreamReceiverService {
       body: JSON.stringify({ content: inputText }),
       signal: controller.signal
     })
-      .then(res => res.body.getReader())
+      .then(res => {
+        clearTimeout(timeoutId)
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`)
+        }
+        return res.body.getReader()
+      })
       .then(reader => {
         const decoder = new TextDecoder()
         let buf = ''
@@ -31,6 +43,7 @@ class StreamReceiverService {
         const pump = ({ done, value }) => {
           if (done) {
             streamData.isDone = true
+            this.cleanupStream(conversationId)
             return
           }
 
@@ -44,7 +57,7 @@ class StreamReceiverService {
               const msg = JSON.parse(line.slice(6))
               streamData.messages.push(msg)
             } catch (e) {
-              console.warn('parse error', e)
+              console.warn('parse error', e, 'for line:', line)
             }
           }
           return reader.read().then(pump)
@@ -52,10 +65,10 @@ class StreamReceiverService {
         return reader.read().then(pump)
       })
       .catch(err => {
+        clearTimeout(timeoutId)
         console.error('Stream error', err)
-      })
-      .finally(() => {
         streamData.isDone = true
+        this.cleanupStream(conversationId)
       })
   }
 
@@ -67,9 +80,36 @@ class StreamReceiverService {
     const data = this.activeStreams.get(conversationId)
     if (data) {
       data.controller.abort()
-      this.activeStreams.delete(conversationId)
+      this.cleanupStream(conversationId)
     }
+  }
+
+  // 清理完成的流
+  cleanupStream(conversationId) {
+    const data = this.activeStreams.get(conversationId)
+    if (data && data.isDone) {
+      // 延迟清理，确保所有数据都被处理
+      setTimeout(() => {
+        this.activeStreams.delete(conversationId)
+      }, 5000)
+    }
+  }
+
+  // 检查是否有活跃的流
+  hasActiveStreams() {
+    return this.activeStreams.size > 0
   }
 }
 
-export default new StreamReceiverService()
+// 创建全局单例
+const streamReceiver = new StreamReceiverService()
+
+// 页面可见性变化时恢复流
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // 页面重新可见时，可以执行一些恢复操作
+    console.log('Page became visible, active streams:', streamReceiver.hasActiveStreams())
+  }
+})
+
+export default streamReceiver

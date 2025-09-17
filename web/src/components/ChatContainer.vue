@@ -22,7 +22,7 @@ import ConversationList from './ConversationList.vue'
 import InputArea from './InputArea.vue'
 import axios from 'axios'
 import streamReceiver from '@/services/StreamReceiverService'
-
+import { chatStore } from '@/store/chatStore'
 
 export default {
   name: 'ChatContainer',
@@ -32,18 +32,48 @@ export default {
     return {
       messages: [], 
       isLoading: false, 
-      currentConversationId: null,
       apiBaseUrl: 'http://localhost:5000',
       pollTimer: null 
     }
   },
 
+  computed: {
+    currentConversationId() {
+      return chatStore.currentConversationId
+    }
+  },
+
+  mounted() {
+    // 恢复当前对话的消息
+    if (this.currentConversationId) {
+      this.loadConversationMessages(this.currentConversationId)
+    }
+    
+    // 全局监听页面可见性变化
+    document.addEventListener('visibilitychange', this.handleVisibilityChange)
+  },
+
   beforeUnmount() {
     this.clearPoll()
-    // 注意：这里不 abort 流，让后台继续接收
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
   },
 
   methods: {
+    /* --------------------------------------------------
+     * 处理页面可见性变化
+     * -------------------------------------------------- */
+    handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        // 页面重新可见时，检查是否有活跃的流需要恢复轮询
+        if (this.currentConversationId) {
+          const sd = streamReceiver.getStreamData(this.currentConversationId)
+          if (sd && !sd.isDone && !this.pollTimer) {
+            this.pollStream(this.currentConversationId)
+          }
+        }
+      }
+    },
+
     /* --------------------------------------------------
      * 切换对话
      * -------------------------------------------------- */
@@ -52,11 +82,11 @@ export default {
 
       if (!conversation) {
         this.messages = []
-        this.currentConversationId = null
+        chatStore.setCurrentConversation(null)
         return
       }
 
-      this.currentConversationId = conversation.conversation_id
+      chatStore.setCurrentConversation(conversation)
       await this.loadConversationMessages(conversation.conversation_id)
 
       // 若后台正在接收该对话，继续轮询
@@ -175,7 +205,7 @@ export default {
       try {
         const title = inputText.length > 20 ? inputText.substring(0, 20) + '…' : inputText
         const { data } = await axios.post(`${this.apiBaseUrl}/conversations`, { title })
-        this.currentConversationId = data.conversation_id
+        chatStore.setCurrentConversation(data)
         await this.handleSendMessage(inputText)
       } catch (e) {
         alert('创建对话失败')
