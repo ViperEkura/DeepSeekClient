@@ -189,7 +189,7 @@ export default {
 .chat-container {
   display: flex;
   height: 100vh;
-  background-color: #f0f5ff;
+  background:linear-gradient(135deg,#0f1b31 0%,#1d2b50 100%);
   font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
 }
 
@@ -197,7 +197,9 @@ export default {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #fff;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.05);
+  background:rgba(255,255,255,.04);
+  backdrop-filter:blur(20px);
+  box-shadow:0 8px 32px rgba(0,0,0,.36);
+  border-left:1px solid rgba(255,255,255,.08);
 }
 </style>

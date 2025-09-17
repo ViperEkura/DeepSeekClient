@@ -149,131 +149,124 @@ export default {
 }
 </script>
 <style scoped>
-.conversation-list {
-  width: 280px;
-  background-color: #1a3a6c;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+.conversation-list{
+  width: 18vw;
+  background:rgba(57, 67, 124, 0.85);
+  backdrop-filter:blur(20px);
+  color:#e1e8f0;
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  border-right:1px solid rgba(255,255,255,.06);
 }
-
-.header {
-  padding: 20px 15px 15px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.header{
+  padding:20px 18px 14px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
 }
-
-.header h2 {
-  font-weight: 600;
-  font-size: 1.2rem;
-  color: #e6f0ff;
+.header h2{
+  font-weight:600;
+  font-size:1.1rem;
+  letter-spacing:.5px;
 }
-
-.new-chat-btn {
-  background: #4a7bce;
-  color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 6px 12px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: background 0.2s;
+.new-chat-btn{
+  background:linear-gradient(135deg,#00c6ff 0%,#0072ff 100%);
+  color:#fff;
+  border:none;
+  border-radius:20px;
+  padding:6px 14px;
+  font-size:13px;
+  cursor:pointer;
+  transition:transform .2s,box-shadow .2s;
 }
-
-.new-chat-btn:hover {
-  background: #5a8bd9;
+.new-chat-btn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 4px 12px rgba(0,114,255,.35);
 }
-
-.search-box {
-  padding: 15px;
-  height: 30px;
+.search-box{
+  padding:0 18px 12px;
 }
-
-.search-box input {
-  width: 100%;
-  height: 100%;
-  border-radius: 25px;
-  border: none;
-  background: #2a4a7c;
-  color: white;
-  font-size: 14px;
+.search-box input{
+  width:100%;
+  height:34px;
+  border-radius:17px;
+  border:none;
+  background:rgba(255,255,255,.07);
+  color:#fff;
+  padding:4px;
+  font-size:14px;
+  transition:background .2s;
 }
-
-.search-box input::placeholder {
-  color: #a0b8e0;
+.search-box input:focus{
+  background:rgba(255,255,255,.12);
+  outline:none;
 }
-
-.conversations-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 5px;
+.conversations-container{
+  flex:1;
+  overflow-y:auto;
+  padding:4px 10px 20px;
 }
-
-.conversation-item {
-  padding: 12px 15px;
-  display: flex;
-  align-items: center;
-  border-radius: 10px;
-  margin: 5px 10px;
-  cursor: pointer;
-  transition: background 0.2s;
-  position: relative;
+.conversation-item{
+  padding:12px;
+  margin-bottom:8px;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  cursor:pointer;
+  transition:background .2s;
 }
-
-.conversation-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+.conversation-item:hover{
+  background:rgba(255,255,255,.06);
 }
-
-.conversation-item.active {
-  background: rgba(255, 255, 255, 0.15);
+.conversation-item.active{
+  background:rgba(0, 115, 255, 0.2);
+  color:#fff;
 }
-
-.avatar {
-  width: 45px;
-  height: 45px;
-  border-radius: 50%;
-  background: #4a7bce;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  margin-right: 12px;
-  flex-shrink: 0;
+.avatar{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  background:linear-gradient(135deg,#00c8ff 0%,#0072ff 100%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.2rem;
+  margin-right:12px;
+  flex-shrink:0;
 }
-
-.conversation-info {
-  flex: 1;
-  min-width: 0;
+.conversation-info{flex:1}
+.title{
+  font-weight:500;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
-
-.title {
-  font-weight: 500;
-  margin-bottom: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 150px;
+.preview{
+  font-size:12px;
+  color:#a0aec0;
+  margin-top:2px;
 }
-
-.preview {
-  font-size: 13px;
-  color: #c0d0f0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
+.time{
+  font-size:11px;
+  color:#718096;
+  margin-left:6px;
 }
-
-.time {
-  font-size: 12px;
-  color: #a0b8e0;
-  flex-shrink: 0;
-  margin-left: 8px;
+.delete-btn{
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  background:rgba(255,255,255,.1);
+  color:#e1e8f0;
+  border:none;
+  font-size:14px;
+  line-height:22px;
+  text-align:center;
+  cursor:pointer;
+  transition:background .2s,transform .2s;
+}
+.delete-btn:hover{
+  background:#ff4d4f;
+  transform:scale(1.15);
 }
 </style>
