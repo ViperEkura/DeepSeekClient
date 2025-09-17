@@ -76,6 +76,16 @@ class StreamReceiverService {
     return this.activeStreams.get(conversationId)
   }
 
+  // 获取所有活跃的流
+  getAllActiveStreams() {
+    return this.activeStreams
+  }
+
+  // 检查特定对话是否有活跃的流
+  hasActiveStream(conversationId) {
+    return this.activeStreams.has(conversationId) && !this.activeStreams.get(conversationId).isDone
+  }
+
   cancelStream(conversationId) {
     const data = this.activeStreams.get(conversationId)
     if (data) {

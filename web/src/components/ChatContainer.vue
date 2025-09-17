@@ -4,7 +4,7 @@
     <ConversationList @conversation-selected="handleConversationSelected" />
     <div class="main-chat">
       <MessageList
-        :messages="messages"
+        :messages="currentMessages"
         :is-loading="isLoading"
         :conversation-id="currentConversationId?.toString()"
       />
@@ -30,16 +30,21 @@ export default {
 
   data() {
     return {
-      messages: [], 
+      messagesByConversation: new Map(), // 为每个对话单独存储消息
       isLoading: false, 
       apiBaseUrl: 'http://localhost:5000',
-      pollTimer: null 
+      pollTimers: new Map() // 为每个对话单独存储轮询计时器
     }
   },
 
   computed: {
     currentConversationId() {
       return chatStore.currentConversationId
+    },
+    
+    currentMessages() {
+      // 返回当前对话的消息，如果不存在则返回空数组
+      return this.messagesByConversation.get(this.currentConversationId) || []
     }
   },
 
@@ -51,10 +56,13 @@ export default {
     
     // 全局监听页面可见性变化
     document.addEventListener('visibilitychange', this.handleVisibilityChange)
+    
+    // 启动所有活跃流的轮询
+    this.startAllActiveStreamsPolling()
   },
 
   beforeUnmount() {
-    this.clearPoll()
+    this.clearAllPolls()
     document.removeEventListener('visibilitychange', this.handleVisibilityChange)
   },
 
@@ -64,34 +72,44 @@ export default {
      * -------------------------------------------------- */
     handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
-        // 页面重新可见时，检查是否有活跃的流需要恢复轮询
-        if (this.currentConversationId) {
-          const sd = streamReceiver.getStreamData(this.currentConversationId)
-          if (sd && !sd.isDone && !this.pollTimer) {
-            this.pollStream(this.currentConversationId)
-          }
-        }
+        // 页面重新可见时，检查所有活跃的流
+        this.startAllActiveStreamsPolling()
       }
+    },
+
+    /* --------------------------------------------------
+     * 启动所有活跃流的轮询
+     * -------------------------------------------------- */
+    startAllActiveStreamsPolling() {
+      const activeStreams = streamReceiver.getAllActiveStreams()
+      activeStreams.forEach((streamData, conversationId) => {
+        if (!streamData.isDone && !this.pollTimers.has(conversationId)) {
+          this.pollStream(conversationId)
+        }
+      })
     },
 
     /* --------------------------------------------------
      * 切换对话
      * -------------------------------------------------- */
     async handleConversationSelected(conversation) {
-      this.clearPoll()
-
       if (!conversation) {
-        this.messages = []
         chatStore.setCurrentConversation(null)
         return
       }
 
       chatStore.setCurrentConversation(conversation)
-      await this.loadConversationMessages(conversation.conversation_id)
+      
+      // 加载该对话的消息（如果还没有加载过）
+      if (!this.messagesByConversation.has(conversation.conversation_id)) {
+        await this.loadConversationMessages(conversation.conversation_id)
+      }
 
-      // 若后台正在接收该对话，继续轮询
+      // 确保该对话的流正在轮询
       const sd = streamReceiver.getStreamData(conversation.conversation_id)
-      if (sd && !sd.isDone) this.pollStream(conversation.conversation_id)
+      if (sd && !sd.isDone && !this.pollTimers.has(conversation.conversation_id)) {
+        this.pollStream(conversation.conversation_id)
+      }
     },
 
     /* --------------------------------------------------
@@ -103,12 +121,15 @@ export default {
         const { data } = await axios.get(
           `${this.apiBaseUrl}/conversations/${conversationId}/messages/recent?limit=500`
         )
-        this.messages = data.map(msg => ({
+        
+        const messages = data.map(msg => ({
           id: msg.message_id,
           content: msg.content,
           sender: msg.role === 'user' ? 'user' : 'system',
           timestamp: msg.timestamp
         }))
+        
+        this.messagesByConversation.set(conversationId, messages)
       } catch (e) {
         console.error('加载消息失败:', e)
         alert('加载消息失败，请检查网络')
@@ -124,6 +145,13 @@ export default {
       if (!this.currentConversationId) {
         await this.createNewConversation(inputText)
         return
+      }
+
+      // 获取当前对话的消息数组，如果不存在则创建
+      let currentMsgs = this.messagesByConversation.get(this.currentConversationId)
+      if (!currentMsgs) {
+        currentMsgs = []
+        this.messagesByConversation.set(this.currentConversationId, currentMsgs)
       }
 
       // 1. 落库用户消息
@@ -144,7 +172,10 @@ export default {
         sender: 'user',
         timestamp: new Date()
       }
-      this.messages.push(userMsg)
+      currentMsgs.push(userMsg)
+      
+      // 触发响应式更新
+      this.messagesByConversation.set(this.currentConversationId, [...currentMsgs])
 
       // 3. 插入占位 AI 消息（流式）
       const aiMsgId = Date.now() + 1
@@ -155,24 +186,40 @@ export default {
         timestamp: new Date(),
         isStreaming: true
       }
-      this.messages.push(aiMsg)
+      currentMsgs.push(aiMsg)
+      
+      // 触发响应式更新
+      this.messagesByConversation.set(this.currentConversationId, [...currentMsgs])
 
       // 4. 启动后台流式接收
       streamReceiver.startStream(this.currentConversationId, inputText, this.apiBaseUrl)
-      this.pollStream(this.currentConversationId)
+      
+      // 启动该对话的轮询（如果还没有启动）
+      if (!this.pollTimers.has(this.currentConversationId)) {
+        this.pollStream(this.currentConversationId)
+      }
     },
 
     /* --------------------------------------------------
-     * 轮询把后台 chunk 合并到当前 messages
+     * 轮询把后台 chunk 合并到对应对话的 messages
      * -------------------------------------------------- */
     pollStream(conversationId) {
-      this.clearPoll()
-      this.pollTimer = setInterval(() => {
+      // 清除该对话之前的轮询（如果有）
+      this.clearPoll(conversationId)
+      
+      const timer = setInterval(() => {
         const sd = streamReceiver.getStreamData(conversationId)
-        if (!sd) return this.clearPoll()
+        if (!sd) return this.clearPoll(conversationId)
+
+        // 获取该对话的消息数组
+        let msgs = this.messagesByConversation.get(conversationId)
+        if (!msgs) {
+          msgs = []
+          this.messagesByConversation.set(conversationId, msgs)
+        }
 
         // 找到正在流式的 AI 消息
-        const aiMsg = this.messages.find(m => m.isStreaming)
+        const aiMsg = msgs.find(m => m.isStreaming)
         if (!aiMsg) return
 
         // 合并内容
@@ -180,22 +227,38 @@ export default {
           .filter(m => m.type === 'chunk')
           .map(m => m.content)
           .join('')
-        this.$set(this.messages, this.messages.indexOf(aiMsg), { ...aiMsg })
+          
+        // 触发响应式更新
+        this.messagesByConversation.set(conversationId, [...msgs])
 
         // 流结束
         if (sd.isDone) {
           aiMsg.isStreaming = false
-          this.$set(this.messages, this.messages.indexOf(aiMsg), { ...aiMsg })
-          this.clearPoll()
+          // 触发响应式更新
+          this.messagesByConversation.set(conversationId, [...msgs])
+          this.clearPoll(conversationId)
         }
       }, 80)
+      
+      // 存储该对话的轮询计时器
+      this.pollTimers.set(conversationId, timer)
     },
 
-    clearPoll() {
-      if (this.pollTimer) {
-        clearInterval(this.pollTimer)
-        this.pollTimer = null
+    // 清除特定对话的轮询
+    clearPoll(conversationId) {
+      const timer = this.pollTimers.get(conversationId)
+      if (timer) {
+        clearInterval(timer)
+        this.pollTimers.delete(conversationId)
       }
+    },
+    
+    // 清除所有对话的轮询
+    clearAllPolls() {
+      this.pollTimers.forEach((timer) => {
+        clearInterval(timer)
+      })
+      this.pollTimers.clear()
     },
 
     /* --------------------------------------------------

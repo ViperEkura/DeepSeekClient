@@ -304,7 +304,7 @@ class MessageService:
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
 
                 yield f"data: {json.dumps({'type': 'complete'})}\n\n"
-                self.message_repo.create(conversation_id, 'assistant', "".join(full_response))
+                self.message_repo.create(conversation_id, 'system', "".join(full_response))
 
             except Exception as e:
                 self.app.logger.error(f"Stream error: {str(e)}")
