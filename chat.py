@@ -1,4 +1,4 @@
-from neunexus.client import DeepSeekClient
+from neunexus.core.client import DeepSeekClient
 import json
 
 def config_loader(config_path="./config.json"):

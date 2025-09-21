@@ -1,6 +1,6 @@
 import json
 from typing import Any
-from neunexus.client import DeepSeekClient
+from neunexus.core.client import DeepSeekClient
 from neunexus.database.manager import DatabaseManager
 from neunexus.database.repositories import MessageRepository
 

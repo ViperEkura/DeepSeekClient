@@ -1,6 +1,6 @@
 from neunexus import NeuNexusApp
 from neunexus.database import DatabaseManager
-from neunexus.client import DeepSeekClient
+from neunexus.core.client import DeepSeekClient
 import json
  
 

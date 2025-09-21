@@ -3,7 +3,7 @@ from flask_cors import CORS
 from neunexus.database import DatabaseManager
 from neunexus.api import ConversationController, MessageController
 from neunexus.service import ConversationService, MessageService
-from neunexus.client import DeepSeekClient
+from neunexus.core.client import DeepSeekClient
 
 
 class NeuNexusApp:
