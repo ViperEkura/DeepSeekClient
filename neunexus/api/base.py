@@ -1,7 +1,7 @@
+from flask import Flask, jsonify
+from functools import wraps
 from typing import Any, Callable
 
-from flask import Flask, jsonify
-from sklearn.conftest import wraps
 
 
 def handle_errors(func: Callable) -> Callable:
