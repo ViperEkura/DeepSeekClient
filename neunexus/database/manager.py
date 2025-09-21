@@ -1,6 +1,7 @@
 import sqlite3
 import threading
 from contextlib import contextmanager
+from typing import List
 
 
 class SQLiteConnection:
